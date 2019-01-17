@@ -1,8 +1,62 @@
 The NEWS file was generated from xterm.log.html, which serves as the changelog
 for xterm.
 --------------------------------------------------------------------------------
-                            Patch #335 - 2018/08/14
+                            Patch #336 - 2018/09/19
 
-     * add  colorInnerBorder  resource  to  make  a change from patch #334
-       configurable (reports by H Merijn Brand, Gabriele Balducci).
+     * ensure  that only one of PRIMARY and CLIPBOARD is owned by xterm at
+       a given time (Debian #901249).
+     * documentation fixes (report by Lars Krueger):
+          + document SL and SR.
+          + document DECRPTUI, change number of digits to match VT420.
+     * revise omitTranslation resource, e.g., splitting “default” into
+       several more useful categories.
+     * modify mask-logic to permit control- and meta- modifiers to be used
+       in mouse protocol.
+     * several   fixes   for  parsing/state  (report/testcases  by  Martin
+       Hostettler):
+          + remove  an  old/unimplemented entry for xterm-title from state
+            table.
+          + save/restore wrap-flag when scrolling, to fix an inconsistency
+            between jump-scrolling and normal-scrolling.
+          + improve  a  special  case  of wrapping where the cursor starts
+            beyond   the   right-margin,   and  wraps  at  the  terminal's
+            last-column before the settable-margins can take effect.
+          + if  origin  mode  is  set,  adjust  a  restored  cursor column
+            relative to the left margin.
+          + when scrolling a line within left/right margins, correct order
+            of the fixups needed when a double-width character crosses the
+            margin boundary.
+     * review/fix  a few cases where the parsing state was not reset after
+       completing  a  control  sequence  (prompted  by  report  by  Martin
+       Hostettler).
+     * disallow  XTCHECKSUM  if the corresponding window-ops "SetChecksum"
+       is unset.
+     * add  print-vt-chars.pl  script to illustrate the NRCS and codepages
+       supported by xterm.
+     * add   other-sgr.sh   script  to  demonstrate  the  non-VT100  video
+       attributes  implemented in patch #305, and added a summary of their
+       introduction in ECMA-48 to the control sequences document.
+     * add  tabs  and  -tabs  keywords  to  ttyModes  resource to simplify
+       workaround  for  terminal  drivers  which  are  not  aware of UTF-8
+       (FreeBSD #229682).
+     * add VT5xx NRCS 7-bit Turkish and DEC Turkish.
+     * add VT5xx NRCS 7-bit Hebrew and DEC Hebrew.
+     * add VT5xx NRCS 7-bit Greek and DEC Greek.
+     * correct  a  few  post-VT220  codepages to make them display without
+       setting the NRCS state.
+     * extend  vt100Graphics resource to include other character-sets such
+       as the VT500 codepages in UTF-8 mode.
+     * add   some   VT5xx   codepages  to  help  with  the  discussion  of
+       96-character sets: ISO Greek Supplemental, ISO Hebrew Supplemental,
+       ISO Latin–5 Supplemental, and ISO Latin–Cyrillic.
+     * improve description of the VT300-controls for designating character
+       sets,  and  fix  a  typo  which  indicated  that some were used for
+       94-character sets (prompted by discussion with Lars Krueger).
+     * add private control XTCHECKSUM for modifying checksumExtension.
+     * factor  out  xterm's  DECRQCRA  checksum  extensions  as a resource
+       setting checksumExtension.
+     * revise   calculation  of  checksum  for  DECRQCRA  to  match  DEC's
+       terminals (using screenshots of vttest provided by Markus Schmidt).
+     * restore  a fix for memory-checksum setup of DECCKSR from patch #315
+       incorrectly reverted in patch #334 as part of fix for DECRQCRA.
 

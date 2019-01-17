@@ -1,4 +1,4 @@
-/* $XTermId: xterm.h,v 1.805 2018/08/13 23:55:11 tom Exp $ */
+/* $XTermId: xterm.h,v 1.810 2018/09/08 00:25:02 tom Exp $ */
 
 /*
  * Copyright 1999-2017,2018 by Thomas E. Dickey
@@ -416,6 +416,7 @@ extern char **environ;
 #define XtNcacheDoublesize	"cacheDoublesize"
 #define XtNcdXtraScroll		"cdXtraScroll"
 #define XtNcharClass		"charClass"
+#define XtNchecksumExtension	"checksumExtension"
 #define XtNcjkWidth		"cjkWidth"
 #define XtNcolorAttrMode	"colorAttrMode"
 #define XtNcolorBDMode		"colorBDMode"
@@ -616,6 +617,7 @@ extern char **environ;
 #define XtCCacheDoublesize	"CacheDoublesize"
 #define XtCCdXtraScroll		"CdXtraScroll"
 #define XtCCharClass		"CharClass"
+#define XtCChecksumExtension	"ChecksumExtension"
 #define XtCCjkWidth		"CjkWidth"
 #define XtCColorAttrMode	"ColorAttrMode"
 #define XtCColorInnerBorder	"ColorInnerBorder"
@@ -917,13 +919,15 @@ extern void ToggleAlternate (XtermWidget /* xw */);
 extern void VTInitTranslations (void);
 extern void VTReset (XtermWidget /* xw */, int /* full */, int /* saved */) GCC_NORETURN;
 extern void VTRun (XtermWidget /* xw */);
-extern void dotext (XtermWidget /* xw */, int  /* charset */, IChar * /* buf */, Cardinal  /* len */);
+extern void dotext (XtermWidget /* xw */, DECNRCM_codes /* charset */, IChar * /* buf */, Cardinal  /* len */);
 extern void getKeymapResources(Widget /* w */, const char * /*mapName */, const char * /* mapClass */, const char * /* type */, void * /* result */, size_t /* size */);
 extern void initBorderGC (XtermWidget /* xw */, VTwin * /* win */);
 extern void lookupSelectUnit(XtermWidget /* xw */, Cardinal /* item */, String /* value */);
 extern void releaseCursorGCs(XtermWidget /*xw*/);
 extern void releaseWindowGCs(XtermWidget /*xw*/, VTwin * /*win*/);
 extern void resetCharsets (TScreen * /* screen */);
+extern void restoreCharsets (TScreen * /* screen */, DECNRCM_codes * /* source */);
+extern void saveCharsets (TScreen * /* screen */, DECNRCM_codes * /* target */);
 extern void set_max_col(TScreen *  /* screen */, int  /* cols */);
 extern void set_max_row(TScreen *  /* screen */, int  /* rows */);
 extern void set_lr_margins (TScreen * /* screen */, int  /* left */, int  /* right */);
@@ -961,8 +965,8 @@ extern void noleaks_charproc (void);
 #endif
 
 /* charsets.c */
-extern unsigned xtermCharSetIn (TScreen * /* screen */, unsigned  /* code */, int  /* charset */);
-extern int xtermCharSetOut (XtermWidget /* xw */, IChar * /* buf */, IChar * /* ptr */, int  /* charset */);
+extern unsigned xtermCharSetIn (XtermWidget /* xw */, unsigned  /* code */, DECNRCM_codes /* charset */);
+extern int xtermCharSetOut (XtermWidget /* xw */, IChar * /* buf */, IChar * /* ptr */, DECNRCM_codes /* charset */);
 
 /* cursor.c */
 extern int CursorCol (XtermWidget /* xw */);

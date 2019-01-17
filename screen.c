@@ -1,4 +1,4 @@
-/* $XTermId: screen.c,v 1.537 2018/08/09 08:23:24 tom Exp $ */
+/* $XTermId: screen.c,v 1.559 2018/09/18 01:23:59 tom Exp $ */
 
 /*
  * Copyright 1999-2017,2018 by Thomas E. Dickey
@@ -714,17 +714,21 @@ CopyCells(TScreen *screen, LineData *src, LineData *dst, int col, int len)
     if (len > 0) {
 	int n;
 	int last = col + len;
+#if OPT_WIDE_CHARS
+	int fix_l = -1;
+	int fix_r = -1;
+#endif
 
 	if_OPT_WIDE_CHARS(screen, {
 	    if (col > 0 &&
 		((dst->charData[col] == HIDDEN_CHAR) ^
 		 (src->charData[col] == HIDDEN_CHAR))) {
-		dst->charData[col - 1] = ' ';
+		fix_l = col - 1;
 	    }
 	    if (last < src->lineSize &&
 		((dst->charData[last] == HIDDEN_CHAR) ^
 		 (src->charData[last] == HIDDEN_CHAR))) {
-		dst->charData[last] = ' ';
+		fix_l = last - 1;
 	    }
 	});
 
@@ -732,6 +736,12 @@ CopyCells(TScreen *screen, LineData *src, LineData *dst, int col, int len)
 	    dst->charData[n] = src->charData[n];
 	    dst->attribs[n] = src->attribs[n];
 	}
+	if_OPT_WIDE_CHARS(screen, {
+	    if (fix_l >= 0)
+		dst->charData[fix_l] = ' ';
+	    if (fix_r >= 0)
+		dst->charData[fix_r] = ' ';
+	});
 
 	if_OPT_ISO_COLORS(screen, {
 	    for (n = col; n < last; ++n) {
@@ -840,6 +850,7 @@ void
 ScrnDisownSelection(XtermWidget xw)
 {
     if (ScrnHaveSelection(TScreenOf(xw))) {
+	TRACE(("ScrnDisownSelection\n"));
 	if (TScreenOf(xw)->keepSelection) {
 	    UnhiliteSelection(xw);
 	} else {
@@ -2713,8 +2724,19 @@ xtermCheckRect(XtermWidget xw,
     TScreen *screen = TScreenOf(xw);
     XTermRect target;
     LineData *ld;
+    int total = 0;
+    int trimmed = 0;
+    int mode = screen->checksum_ext;
 
-    *result = 0;
+    TRACE(("xtermCheckRect: %s%s%s%s%s%s%s\n",
+	   (mode == csDEC) ? "DEC" : "checksumExtension",
+	   (mode & csPOSITIVE) ? " !negative" : "",
+	   (mode & csATTRIBS) ? " !attribs" : "",
+	   (mode & csNOTRIM) ? " !trimmed" : "",
+	   (mode & csDRAWN) ? " !drawn" : "",
+	   (mode & csBYTE) ? " !byte" : "",
+	   (mode & cs8TH) ? " !7bit" : ""));
+
     if (nparam > 2) {
 	nparam -= 2;
 	params += 2;
@@ -2724,6 +2746,9 @@ xtermCheckRect(XtermWidget xw,
 	int top = target.top - 1;
 	int bottom = target.bottom - 1;
 	int row, col;
+	Boolean first = True;
+	int embedded = 0;
+	DECNRCM_codes my_GR = screen->gsets[(int) screen->curgr];
 
 	for (row = top; row <= bottom; ++row) {
 	    int left = (target.left - 1);
@@ -2733,20 +2758,62 @@ xtermCheckRect(XtermWidget xw,
 	    if (ld == 0)
 		continue;
 	    for (col = left; col <= right && col < ld->lineSize; ++col) {
-		if (ld->attribs[col] & CHARDRAWN) {
-		    *result += (int) ld->charData[col];
+		int ch = ((ld->attribs[col] & CHARDRAWN)
+			  ? (int) ld->charData[col]
+			  : ' ');
+		if (!(mode & csBYTE)) {
+		    unsigned c2 = (unsigned) ch;
+		    if (c2 > 0x7f && my_GR != nrc_ASCII) {
+			c2 = xtermCharSetIn(xw, c2, my_GR);
+			if (!(mode & cs8TH) && (c2 < 0x80))
+			    c2 |= 0x80;
+		    }
+		    ch = (c2 & 0xff);
+		}
+		if (!(mode & csATTRIBS)) {
+		    if (ld->attribs[col] & UNDERLINE)
+			ch += 0x10;
+		    if (ld->attribs[col] & INVERSE)
+			ch += 0x20;
+		    if (ld->attribs[col] & BLINK)
+			ch += 0x40;
+		    if (ld->attribs[col] & BOLD)
+			ch += 0x80;
+		}
+		if (first || (ch != ' ') || (ld->attribs[col] & DRAWX_MASK)) {
+		    trimmed += ch + embedded;
+		    embedded = 0;
+		} else if (ch == ' ') {
+		    if ((mode & csNOTRIM))
+			embedded += ch;
+		}
+		if ((ld->attribs[col] & CHARDRAWN)) {
+		    total += ch;
 		    if_OPT_WIDE_CHARS(screen, {
-			size_t off;
-			for_each_combData(off, ld) {
-			    *result += (int) ld->combData[off][col];
+			/* FIXME - not counted if trimming blanks */
+			if (!(mode & csBYTE)) {
+			    size_t off;
+			    for_each_combData(off, ld) {
+				total += (int) ld->combData[off][col];
+			    }
 			}
 		    })
-		} else {
-		    *result += ' ';
+		} else if (!(mode & csDRAWN)) {
+		    total += ch;
 		}
+		first = ((mode & csNOTRIM) != 0) ? True : False;
+	    }
+	    if (!(mode & csNOTRIM)) {
+		embedded = 0;
+		first = False;
 	    }
 	}
     }
+    if (!(mode & csNOTRIM))
+	total = trimmed;
+    if (!(mode & csPOSITIVE))
+	total = -total;
+    *result = total;
 }
 #endif /* OPT_DEC_RECTOPS */
 
