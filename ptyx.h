@@ -1,7 +1,7 @@
-/* $XTermId: ptyx.h,v 1.944 2018/12/18 23:08:57 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.950 2019/01/12 01:34:39 tom Exp $ */
 
 /*
- * Copyright 1999-2017,2018 by Thomas E. Dickey
+ * Copyright 1999-2018,2019 by Thomas E. Dickey
  *
  *                         All Rights Reserved
  *
@@ -1858,18 +1858,25 @@ typedef enum {
 	if ((xw)->work.render_font == erDefault) \
 	    (xw)->work.render_font = erFalse
 
-#define MAX_XFT_CACHE	10
-typedef struct {
-	XftFont *	font;
-	unsigned long	usage;
-} XTermXftCache;
+typedef enum {
+    	xcEmpty = 0			/* slot is unused */
+	, xcBogus			/* ignore this pattern */
+	, xcOpened			/* slot has open font descriptor */
+	, xcUnused			/* opened, but unused so far */
+} XftCache;
 
 typedef struct {
 	XftFont *	font;
-	XftPattern *	pattern;
-	XftFontSet *	fontset;
-	XTermXftCache   cache[MAX_XFT_CACHE];
-	unsigned long	cache_used;
+	XftCache	usage;
+} XTermXftCache;
+
+typedef struct {
+	XftFont *	font;		/* main font */
+	XftPattern *	pattern;	/* pattern for main font */
+	XftFontSet *	fontset;	/* ordered list of fallback patterns */
+	XTermXftCache * cache;
+	unsigned	limit;		/* allocated size of cache[] */
+	unsigned	opened;		/* number of slots with xcOpened */
 	FontMap		map;
 } XTermXftFonts;
 
@@ -2629,8 +2636,7 @@ typedef struct {
 	Boolean		keepSelection;	/* do not lose selection on output */
 	Boolean		replyToEmacs;	/* Send emacs escape code when done selecting or extending? */
 
-	Char		*clipboard_data; /* the current clipboard */
-	unsigned long	clipboard_size; /*  size of allocated buffer */
+	SelectedCells	clipboard_data;	/* what we sent to the clipboard */
 
 	EventMode	eventMode;
 	Time		selection_time;	/* latest event timestamp */
@@ -2983,6 +2989,7 @@ typedef struct _Misc {
     VTFontNames default_xft;
     float face_size[NMENUFONTS];
     char *render_font_s;
+    int limit_fontsets;
 #endif
 } Misc;
 
@@ -3023,6 +3030,7 @@ typedef struct _Work {
     XtermFontNames fonts;
 #if OPT_RENDERFONT
     Boolean render_font;
+    unsigned max_fontsets;
 #endif
 #if OPT_DABBREV
 #define MAX_DABBREV	1024	/* maximum word length as in tcsh */
