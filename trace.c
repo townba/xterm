@@ -1,4 +1,4 @@
-/* $XTermId: trace.c,v 1.186 2018/09/18 01:09:22 tom Exp $ */
+/* $XTermId: trace.c,v 1.196 2018/12/02 22:47:21 tom Exp $ */
 
 /*
  * Copyright 1997-2017,2018 by Thomas E. Dickey
@@ -36,6 +36,7 @@
 
 #include <xterm.h>		/* for definition of GCC_UNUSED */
 #include <xstrings.h>
+#include <wcwidth.h>
 #include <version.h>
 
 #if OPT_TRACE
@@ -324,6 +325,27 @@ visibleChars(const Char *buf, unsigned len)
 	used = 0;
     }
     return NonNull(result);
+}
+
+const char *
+visibleEventMode(EventMode value)
+{
+    const char *result;
+    switch (value) {
+    case NORMAL:
+	result = "NORMAL";
+	break;
+    case LEFTEXTENSION:
+	result = "LEFTEXTENSION";
+	break;
+    case RIGHTEXTENSION:
+	result = "RIGHTEXTENSION";
+	break;
+    default:
+	result = "?";
+	break;
+    }
+    return result;
 }
 
 const char *
@@ -684,11 +706,11 @@ TraceScreen(XtermWidget xw, int whichBuf)
 }
 
 static char *
-formatEventMask(char *target, int source, Boolean buttons)
+formatEventMask(char *target, unsigned source, Boolean buttons)
 {
 #define DATA(name) { name ## Mask, #name }
     static struct {
-	int mask;
+	unsigned mask;
 	const char *name;
     } table[] = {
 	DATA(Shift),
@@ -767,6 +789,10 @@ TraceEvent(const char *tag, XEvent *ev, String *params, Cardinal *num_params)
 	break;
     case EnterNotify:
     case LeaveNotify:
+	TRACE((" (%d,%d)",
+	       ev->xcrossing.y_root,
+	       ev->xcrossing.x_root));
+	break;
     case FocusIn:
     case FocusOut:
     default:
@@ -774,7 +800,45 @@ TraceEvent(const char *tag, XEvent *ev, String *params, Cardinal *num_params)
 	break;
     }
     TRACE(("\n"));
+    if (params != 0 && *num_params != 0) {
+	Cardinal n;
+	for (n = 0; n < *num_params; ++n) {
+	    TRACE(("  param[%d] = %s\n", n, params[n]));
+	}
+    }
 }
+
+#if OPT_RENDERFONT
+void
+TraceFallback(XtermWidget xw, const char *tag, unsigned wc, int n, XftFont *font)
+{
+    TScreen *screen = TScreenOf(xw);
+    XGlyphInfo gi;
+    int expect = my_wcwidth((wchar_t) wc);
+    int hijack = mk_wcwidth_cjk((wchar_t) wc);
+    int actual;
+
+    XftTextExtents32(screen->display, font, &wc, 1, &gi);
+    actual = ((gi.xOff + FontWidth(screen) - 1)
+	      / FontWidth(screen));
+
+    TRACE(("FALLBACK #%d %s U+%04X %d,%d pos,"
+	   " %d,%d off," " %dx%d size,"
+	   " %d/%d next," " %d vs %d/%d cells%s\n",
+	   n + 1, tag, wc,
+	   gi.y, gi.x,
+	   gi.yOff, gi.xOff,
+	   gi.height, gi.width,
+	   font->max_advance_width,
+	   FontWidth(screen),
+	   actual, expect, hijack,
+	   ((actual != expect)
+	    ? ((actual == hijack)
+	       ? " OOPS"
+	       : " oops")
+	    : "")));
+}
+#endif /* OPT_RENDERFONT */
 
 void
 TraceFocus(Widget w, XEvent *ev)

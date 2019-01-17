@@ -1,4 +1,4 @@
-/* $XTermId: util.c,v 1.768 2018/09/21 20:48:20 tom Exp $ */
+/* $XTermId: util.c,v 1.782 2018/12/09 14:09:03 tom Exp $ */
 
 /*
  * Copyright 1999-2017,2018 by Thomas E. Dickey
@@ -512,6 +512,28 @@ scrollInMargins(XtermWidget xw, int amount, int top)
     int left = ScrnLeftMargin(xw);
     int right = ScrnRightMargin(xw);
     int length = right + 1 - left;
+
+    if_OPT_WIDE_CHARS(screen, {
+	if (amount != 0) {
+	    for (row = top; row <= screen->bot_marg; ++row) {
+		LineData *ld;
+		if ((ld = getLineData(screen, row + amount)) != 0) {
+		    if (left > 0) {
+			if (ld->charData[left] == HIDDEN_CHAR) {
+			    Clear1Cell(ld, left - 1);
+			    Clear1Cell(ld, left);
+			}
+		    }
+		    if (right + 1 < ld->lineSize) {
+			if (ld->charData[right + 1] == HIDDEN_CHAR) {
+			    Clear1Cell(ld, right);
+			    Clear1Cell(ld, right + 1);
+			}
+		    }
+		}
+	    }
+	}
+    });
 
     if (amount > 0) {
 	for (row = top; row <= screen->bot_marg - amount; ++row) {
@@ -2237,7 +2259,14 @@ set_background(XtermWidget xw, int color GCC_UNUSED)
     TScreen *screen = TScreenOf(xw);
     Pixel c = getXtermBG(xw, xw->flags, color);
 
+#if OPT_WIDE_ATTRS
+    TRACE(("set_background(%d) %#lx %s\n", color, c,
+	   ((xw->flags & ATR_DIRECT_BG)
+	    ? "direct"
+	    : "indexed")));
+#else
     TRACE(("set_background(%d) %#lx\n", color, c));
+#endif
     XSetWindowBackground(screen->display, VShellWindow(xw), c);
     XSetWindowBackground(screen->display, VWindow(screen), c);
     initBorderGC(xw, WhichVWin(screen));
@@ -2833,8 +2862,8 @@ getXftColor(XtermWidget xw, Pixel pixel)
 	  ? 0 \
 	  : (((ch) < 256) \
 	      ? (((ch) >= 128 && (ch) < 160) \
-	          ? (TScreenOf(xw)->c1_printable ? 1 : 0) \
-	          : 1) \
+		  ? (TScreenOf(xw)->c1_printable ? 1 : 0) \
+		  : 1) \
 	      : CharWidth(ch)))
 #else
 #define XtermCellWidth(xw, ch) \
@@ -2901,6 +2930,7 @@ getNormXftFont(XtermWidget xw,
     int fontnum = screen->menu_font_number;
     XftFont *font;
 
+    (void) did_ul;
 #if OPT_WIDE_ATTRS
     if ((attr_flags & ATR_ITALIC)
 #if OPT_ISO_COLORS
@@ -3395,7 +3425,7 @@ drawUnderline(XtermWidget xw,
 /*
  * As a special case, we are currently allowing italic fonts to be inexact
  * matches for the normal font's size.  That introduces a problem:  either the
- * ascent or descent may be shorter, leaving a gap that has to be filled in. 
+ * ascent or descent may be shorter, leaving a gap that has to be filled in.
  * Or they may be larger, requiring clipping.  Check for both cases.
  */
 static int
@@ -3440,7 +3470,7 @@ fixupItalics(XtermWidget xw,
 #endif
 
 #define SetMissing(tag) \
-	TRACE(("%s %s: missing %d\n", __FILE__, tag, missing)); \
+	TRACE(("%s %s: missing %d %04X\n", __FILE__, tag, missing, ch)); \
 	missing = 1
 
 /*
@@ -3663,6 +3693,8 @@ drawXtermText(XtermWidget xw,
 #if OPT_WIDE_CHARS
 		int needed = CharWidth(ch);
 		XftFont *currFont = pickXftFont(needed, font, wfont);
+		XftFont *tempFont = 0;
+#define CURR_TEMP (tempFont ? tempFont : currFont)
 
 		if (xtermIsDecGraphic(ch)) {
 		    /*
@@ -3692,15 +3724,17 @@ drawXtermText(XtermWidget xw,
 			    if (screen->force_box_chars
 				|| screen->broken_box_chars
 				|| xtermXftMissing(xw, currFont, ch)) {
-				ch = part;
 				SetMissing("case 2");
+				ch = part;
 			    }
 			} else if (xtermXftMissing(xw, currFont, ch)) {
-			    XftFont *test = pickXftFont(needed, font0, wfont0);
+			    XftFont *test = findXftGlyph(xw, currFont, ch);
+			    if (test == 0)
+				test = pickXftFont(needed, font0, wfont0);
 			    if (!xtermXftMissing(xw, test, ch)) {
-				currFont = test;
+				tempFont = test;
 				replace = True;
-				filler = needed - 1;
+				filler = 0;
 			    } else if ((part = AsciiEquivs(ch)) != ch) {
 				filler = needed - 1;
 				ch = part;
@@ -3713,6 +3747,7 @@ drawXtermText(XtermWidget xw,
 		}
 #else
 		XftFont *currFont = font;
+#define CURR_TEMP (currFont)
 		if (xtermIsDecGraphic(ch)) {
 		    /*
 		     * Xft generally does not have the line-drawing characters
@@ -3762,7 +3797,7 @@ drawXtermText(XtermWidget xw,
 			IChar ch2 = (IChar) ch;
 			int nc = drawClippedXftString(xw,
 						      attr_flags,
-						      currFont,
+						      CURR_TEMP,
 						      getXftColor(xw, values.foreground),
 						      curX,
 						      y,
@@ -3774,7 +3809,7 @@ drawXtermText(XtermWidget xw,
 			    ch2 = ' ';
 			    nc = drawClippedXftString(xw,
 						      attr_flags,
-						      currFont,
+						      CURR_TEMP,
 						      getXftColor(xw, values.foreground),
 						      curX,
 						      y,
@@ -4078,7 +4113,7 @@ drawXtermText(XtermWidget xw,
 	    buffer[dst].byte1 = HI_BYTE(ch);
 #if OPT_MINI_LUIT
 #define UCS2SBUF(value)	buffer[dst].byte2 = LO_BYTE(value);\
-	    		buffer[dst].byte1 = HI_BYTE(value)
+			buffer[dst].byte1 = HI_BYTE(value)
 
 #define Map2Sbuf(from,to) (text[src] == from) { UCS2SBUF(to); }
 
@@ -4650,11 +4685,12 @@ getXtermBackground(XtermWidget xw, unsigned attr_flags, int color)
     Pixel result = T_COLOR(TScreenOf(xw), TEXT_BG);
 
 #if OPT_ISO_COLORS
-    if_OPT_DIRECT_COLOR2_else(TScreenOf(xw), (attr_flags & ATR_DIRECT_BG), {
-	result = (Pixel) color;
-    }) if ((attr_flags & BG_COLOR) &&
-	   (color >= 0 && color < MAXCOLORS)) {
-	result = GET_COLOR_RES(xw, TScreenOf(xw)->Acolors[color]);
+    if (color >= 0) {
+	if_OPT_DIRECT_COLOR2_else(TScreenOf(xw), (attr_flags & ATR_DIRECT_BG), {
+	    result = (Pixel) color;
+	}) if ((attr_flags & BG_COLOR) && (color < MAXCOLORS)) {
+	    result = GET_COLOR_RES(xw, TScreenOf(xw)->Acolors[color]);
+	}
     }
 #else
     (void) attr_flags;
@@ -4752,7 +4788,7 @@ addXtermCombining(TScreen *screen, int row, int col, unsigned ch)
 	LineData *ld = getLineData(screen, row);
 	size_t off;
 
-	TRACE(("addXtermCombining %d,%d %#x (%d)\n",
+	TRACE(("addXtermCombining %d,%d U+%04X (%d)\n",
 	       row, col, ch, CharWidth(ch)));
 
 	for_each_combData(off, ld) {
@@ -5064,7 +5100,7 @@ extendedBoolean(const char *value, const FlagList * table, Cardinal limit)
 	result = (int) check;
     } else {
 	for (n = 0; n < limit; ++n) {
-	    if (x_strcasecmp(value, table[n].name) == 0) {
+	    if (table[n].name != 0 && x_strcasecmp(value, table[n].name) == 0) {
 		result = table[n].code;
 		break;
 	    }
@@ -5209,6 +5245,7 @@ VDrawable(TScreen *screen)
 #endif
 
 #if OPT_RENDERFONT
+#ifndef discardRenderDraw
 void
 discardRenderDraw(TScreen *screen)
 {
@@ -5218,3 +5255,4 @@ discardRenderDraw(TScreen *screen)
     }
 }
 #endif
+#endif /* OPT_RENDERFONT */

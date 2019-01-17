@@ -1,4 +1,4 @@
-/* $XTermId: ptyx.h,v 1.921 2018/09/18 00:54:13 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.943 2018/12/09 14:06:28 tom Exp $ */
 
 /*
  * Copyright 1999-2017,2018 by Thomas E. Dickey
@@ -340,6 +340,12 @@ typedef struct {
     int col;
 } CELL;
 
+typedef struct {
+    Char  *data_buffer;			/* the current selection */
+    size_t data_limit;			/* size of allocated buffer */
+    size_t data_length;			/* number of significant bytes */
+} SelectedCells;
+
 #define isSameRow(a,b)		((a)->row == (b)->row)
 #define isSameCol(a,b)		((a)->col == (b)->col)
 #define isSameCELL(a,b)		(isSameRow(a,b) && isSameCol(a,b))
@@ -468,9 +474,6 @@ typedef enum {
     ,csBYTE = xBIT(4)
     ,cs8TH = xBIT(5)
 } CSBITS;
-
-#define	SAVELINES		64      /* default # lines to save      */
-#define SCROLLLINES 1			/* default # lines to scroll    */
 
 #define EXCHANGE(a,b,tmp) tmp = a; a = b; b = tmp
 
@@ -841,12 +844,6 @@ typedef enum {
 #define OPT_COLOR_RES2 0
 #endif
 
-#if OPT_PASTE64 && !OPT_READLINE
-/* OPT_PASTE64 uses logic from OPT_READLINE */
-#undef  OPT_READLINE
-#define OPT_READLINE 1
-#endif
-
 #if OPT_PC_COLORS && !OPT_ISO_COLORS
 /* You must have ANSI/ISO colors to support PC colors */
 #undef  OPT_PC_COLORS
@@ -966,13 +963,14 @@ typedef enum {
 typedef void (*FormatSelect) (Widget, char *, char *, CELL *, CELL *);
 
 typedef struct {
+    Boolean done;
     char *format;
     char *buffer;
     FormatSelect format_select;
 #if OPT_PASTE64
     Cardinal base64_paste;
 #endif
-#if OPT_READLINE
+#if OPT_PASTE64 || OPT_READLINE
     unsigned paste_brackets;
 #endif
 } InternalSelect;
@@ -1140,11 +1138,13 @@ typedef enum {
 #if OPT_GRAPHICS
     ,srm_PRIVATE_COLOR_REGISTERS = 1070
 #endif
+#if OPT_PASTE64 || OPT_READLINE
+    ,srm_PASTE_IN_BRACKET = SET_PASTE_IN_BRACKET
+#endif
 #if OPT_READLINE
     ,srm_BUTTON1_MOVE_POINT = SET_BUTTON1_MOVE_POINT
     ,srm_BUTTON2_MOVE_POINT = SET_BUTTON2_MOVE_POINT
     ,srm_DBUTTON3_DELETE = SET_DBUTTON3_DELETE
-    ,srm_PASTE_IN_BRACKET = SET_PASTE_IN_BRACKET
     ,srm_PASTE_QUOTE = SET_PASTE_QUOTE
     ,srm_PASTE_LITERAL_NL = SET_PASTE_LITERAL_NL
 #endif				/* OPT_READLINE */
@@ -1324,7 +1324,12 @@ typedef enum {
 /***====================================================================***/
 
 #if OPT_ISO_COLORS
-#define TERM_COLOR_FLAGS(xw)	((xw)->flags & (FG_COLOR|BG_COLOR))
+#if OPT_WIDE_ATTRS
+#define COLOR_FLAGS		(FG_COLOR | BG_COLOR | ATR_DIRECT_FG | ATR_DIRECT_BG)
+#else
+#define COLOR_FLAGS		(FG_COLOR | BG_COLOR)
+#endif
+#define TERM_COLOR_FLAGS(xw)	((xw)->flags & COLOR_FLAGS)
 #define COLOR_0		0
 #define COLOR_1		1
 #define COLOR_2		2
@@ -1761,6 +1766,35 @@ typedef struct {
 
 #define for_each_combData(off, ld) for (off = 0; off < ld->combSize; ++off)
 
+#define Clear1Cell(ld, x) \
+	do { \
+	    ld->charData[x] = ' '; \
+	    do { \
+	    if_OPT_WIDE_CHARS(screen, { \
+		size_t z; \
+		for_each_combData(z, ld) { \
+		    ld->combData[z][x] = '\0'; \
+		} \
+	    }) } while (0); \
+	} while (0)
+
+#define Clear2Cell(dst, src, x) \
+	do { \
+	    dst->charData[x] = ' '; \
+	    dst->attribs[x] = src->attribs[x]; \
+	    do { \
+	    if_OPT_ISO_COLORS(screen, { \
+		dst->color[x] = src->color[x]; \
+	    }) } while (0); \
+	    do { \
+	    if_OPT_WIDE_CHARS(screen, { \
+		size_t z; \
+		for_each_combData(z, dst) { \
+		    dst->combData[z][x] = '\0'; \
+		} \
+	    }) } while (0); \
+	} while (0)
+
 /*
  * Accommodate older compilers by not using variable-length arrays.
  */
@@ -1824,8 +1858,18 @@ typedef enum {
 	if ((xw)->work.render_font == erDefault) \
 	    (xw)->work.render_font = erFalse
 
+#define MAX_XFT_CACHE	10
 typedef struct {
 	XftFont *	font;
+	unsigned long	usage;
+} XTermXftCache;
+
+typedef struct {
+	XftFont *	font;
+	XftPattern *	pattern;
+	XftFontSet *	fontset;
+	XTermXftCache   cache[MAX_XFT_CACHE];
+	unsigned long	cache_used;
 	FontMap		map;
 } XTermXftFonts;
 
@@ -2233,13 +2277,16 @@ typedef struct {
 	unsigned	base64_count;
 	unsigned	base64_pad;
 #endif
+#if OPT_PASTE64 || OPT_READLINE
+	unsigned	paste_brackets;
+	/* not part of bracketed-paste, these are here to simplify ifdefs */
+	unsigned	dclick3_deletes;
+	unsigned	paste_literal_nl;
+#endif
 #if OPT_READLINE
 	unsigned	click1_moves;
 	unsigned	paste_moves;
-	unsigned	dclick3_deletes;
-	unsigned	paste_brackets;
 	unsigned	paste_quotes;
-	unsigned	paste_literal_nl;
 #endif	/* OPT_READLINE */
 #if OPT_DEC_LOCATOR
 	Boolean		locator_reset;	/* turn mouse off after 1 report? */
@@ -2582,21 +2629,16 @@ typedef struct {
 	Boolean		keepSelection;	/* do not lose selection on output */
 	Boolean		replyToEmacs;	/* Send emacs escape code when done selecting or extending? */
 
-	Char		*selection_data; /* the current selection */
-	int		selection_size; /* size of allocated buffer */
-	unsigned long	selection_length; /* number of significant bytes */
-
 	Char		*clipboard_data; /* the current clipboard */
 	unsigned long	clipboard_size; /*  size of allocated buffer */
-
-	Atom		owned_atom;	/* last XtOwnSelection atom */
-	Time		owned_time;	/* timestamp for last XtOwnSelection */
 
 	EventMode	eventMode;
 	Time		selection_time;	/* latest event timestamp */
 	Time		lastButtonUpTime;
 	unsigned	lastButton;
 
+#define MAX_SELECTIONS	12
+	SelectedCells	selected_cells[MAX_SELECTIONS]; /* primary/clipboard */
 	CELL		rawPos;		/* raw position for selection start */
 	CELL		startRaw;	/* area before selectUnit processing */
 	CELL		endRaw;		/* " " */
@@ -2725,7 +2767,7 @@ typedef struct _TekScreen {
 	char		tcapbuf[TERMCAP_SIZE];
 } TekScreen;
 
-#if OPT_READLINE
+#if OPT_PASTE64 || OPT_READLINE
 #define SCREEN_FLAG(screenp,f)		(1&(screenp)->f)
 #define SCREEN_FLAG_set(screenp,f)	((screenp)->f |= 1)
 #define SCREEN_FLAG_unset(screenp,f)	((screenp)->f &= (unsigned) ~1L)
@@ -3409,6 +3451,10 @@ typedef struct Tek_Link
 
 #ifndef TRACE_EVENT
 #define TRACE_EVENT(t,e,s,n) /*nothing*/
+#endif
+
+#ifndef TRACE_FALLBACK
+#define TRACE_FALLBACK(w,t,c,n,f) /*nothing*/
 #endif
 
 #ifndef TRACE_FOCUS

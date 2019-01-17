@@ -1,6 +1,6 @@
--- $XTermId: INSTALL,v 1.176 2017/12/25 12:48:26 tom Exp $
+-- $XTermId: INSTALL,v 1.179 2018/12/09 18:14:52 tom Exp $
 -------------------------------------------------------------------------------
--- Copyright 1997-2016,2017 by Thomas E. Dickey
+-- Copyright 1997-2017,2018 by Thomas E. Dickey
 --
 --                         All Rights Reserved
 --
@@ -104,7 +104,7 @@ The options (in alphabetic order):
 	e.g., to make boxes.  When xterm loads a font, it checks if those
 	characters are present, and draws its own if they are missing.
 
-  --disable-broken-st     disallow broken string-terminators],
+  --disable-broken-st     disallow broken string-terminators,
 
 	Do not compile-in code that works around a bug in some ISDN routers
 	(and possibly other applications written by the same people):  they
@@ -117,7 +117,7 @@ The options (in alphabetic order):
 
 	See also --enable-broken-osc
 
-  --disable-c1-print      disallow -k8 option for printable 128-159],
+  --disable-c1-print      disallow -k8 option for printable 128-159,
 
 	Use this option to suppress support for nonstandard use of codes
 	128-159, which normally are considered control characters.  Some users
@@ -262,9 +262,10 @@ The options (in alphabetic order):
   --disable-paste64       disable support for bracketed paste mode
 
 	Do not compile-in code to support experimental bracketed paste mode,
-	i.e., provide functions for setting/getting the selection data.
+	along with functions for setting/getting the selection data, termed
+	"paste64".
 
-	(see ctlseqs.ms description of OSC 52).
+	(see ctlseqs.ms description of OSC 52, and DECSET 2004).
 
   --disable-pty-handshake disable support for pty handshakes
 
@@ -519,7 +520,8 @@ The options (in alphabetic order):
 	this puts xterm into a mode that sends special function-key strings to
 	bracket the data.
 
-	(See --enable-paste64, which fits xterm's protocol better).
+	(The "paste64" feature, which fits xterm's protocol better, is
+	configured by default).
 
   --enable-sco-fkeys      enable support for SCO-style function keys
 
@@ -735,9 +737,9 @@ The options (in alphabetic order):
 	rule to point to the given directory.
 
 	If you have the $TERMINFO variable defined in your environment, the
-	configure script will use that value.  If no option and no variable
-	are are given, the configure script uses /usr/lib/terminfo, if it
-	exists.
+	configure script may use that value, if it matches an existing
+	directory.  If no option and no variable are are given, the configure
+	script uses /usr/lib/terminfo, if it exists.
 
 	You do not have to run "make install-ti", if there is already a
 	workable terminfo description.  Be advised, however, that the

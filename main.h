@@ -1,4 +1,4 @@
-/* $XTermId: main.h,v 1.65 2018/04/30 00:59:01 tom Exp $ */
+/* $XTermId: main.h,v 1.67 2018/11/25 13:55:05 tom Exp $ */
 
 /*
  * Copyright 2000-2016,2018 by Thomas E. Dickey
@@ -92,7 +92,7 @@
 #endif
 
 #ifndef DEFFACESIZE
-#define DEFFACESIZE		"14.0"
+#define DEFFACESIZE		"8.0"
 #endif
 
 #ifndef DEF_ALLOW_COLOR
@@ -199,6 +199,14 @@
 #else
 #define DEF_PTY_STTY_SIZE	True
 #endif
+#endif
+
+#ifndef DEF_SAVE_LINES
+#define DEF_SAVE_LINES		1024
+#endif
+
+#ifndef DEF_SCROLL_LINES
+#define DEF_SCROLL_LINES	1
 #endif
 
 #ifndef DEF_TITLE_MODES

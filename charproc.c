@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1608 2018/09/21 18:18:27 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1618 2018/12/09 14:05:20 tom Exp $ */
 
 /*
  * Copyright 1999-2017,2018 by Thomas E. Dickey
@@ -501,9 +501,9 @@ static XtResource xterm_resources[] =
     Ires(XtNtitleModes, XtCTitleModes, screen.title_modes, DEF_TITLE_MODES),
     Ires(XtNnextEventDelay, XtCNextEventDelay, screen.nextEventDelay, 1),
     Ires(XtNvisualBellDelay, XtCVisualBellDelay, screen.visualBellDelay, 100),
-    Ires(XtNsaveLines, XtCSaveLines, screen.savelines, SAVELINES),
+    Ires(XtNsaveLines, XtCSaveLines, screen.savelines, DEF_SAVE_LINES),
     Ires(XtNscrollBarBorder, XtCScrollBarBorder, screen.scrollBarBorder, 1),
-    Ires(XtNscrollLines, XtCScrollLines, screen.scrolllines, SCROLLLINES),
+    Ires(XtNscrollLines, XtCScrollLines, screen.scrolllines, DEF_SCROLL_LINES),
 
     Sres(XtNinitialFont, XtCInitialFont, screen.initial_font, NULL),
     Sres(XtNfont1, XtCFont1, screen.MenuFontName(fontMenu_font1), NULL),
@@ -1881,7 +1881,7 @@ get_subparam(int p, int s)
  * to be effective (more than $100 then, more than $200 in 2012)
  *
  * We overlooked the detail about ":" as a subparameter delimiter (documented
- * in 5.4.t2 in ECMA-48).  Some discussion in KDE in mid-2006 led Lars Doelle
+ * in 5.4.2 in ECMA-48).  Some discussion in KDE in mid-2006 led Lars Doelle
  * to discuss the issue with me.  Lars' initial concern dealt with the fact
  * that a sequence such as
  *	CSI 38 ; 5 ; 1 m
@@ -1913,6 +1913,31 @@ get_subparam(int p, int s)
  *
  * By the way - all of the parameters are decimal integers, and missing
  * parameters represent a default value.  ISO-8613-6 is clear about that.
+ *
+ * Aside from ISO-8613-3, there is no standard use of ":" as a delimiter.
+ * ECMA-48 says only:
+ *
+ *	5.4.2 Parameter string format
+ *
+ *	A parameter string which does not start with a bit combination in the
+ *	range 03/12 to 03/15 shall have the following format:
+ *
+ *	    a) A parameter string consists of one or more parameter
+ *	       sub-strings, each of which represents a number in decimal
+ *	       notation.
+ *
+ *	    b) Each parameter sub-string consists of one or more bit
+ *	       combinations from 03/00 to 03/10; the bit combinations from
+ *	       03/00 to 03/09 represent the digits ZERO to NINE; bit
+ *	       combination 03/10 may be used as a separator in a parameter
+ *	       sub-string, for example, to separate the fractional part of a
+ *	       decimal number from the integer part of that number.
+ *
+ * That is, there is no mention in ECMA-48 of the possibility that a parameter
+ * string might be a list of parameters, as done in ISO-8613-3 (nor does
+ * ECMA-48 provide an example where the ":" separator might be used).  Because
+ * of this, xterm treats other cases than those needed for ISO-8613-3 as an
+ * error, and stops interpreting the sequence.
  */
 #define extended_colors_limit(n) ((n) == 5 ? 1 : ((n) == 2 ? 3 : 0))
 static Boolean
@@ -2175,7 +2200,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		&& CharWidth(test) == CharWidth(prev)) {
 		putXtermCell(screen, use_row, use_col, test);
 	    } else if (screen->char_was_written
-		       || getXtermCell(screen, use_row, use_col) > ' ') {
+		       || getXtermCell(screen, use_row, use_col) >= ' ') {
 		addXtermCombining(screen, use_row, use_col, c);
 	    } else {
 		/*
@@ -3065,6 +3090,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	case CASE_SGR:
 	    for (item = 0; item < nparam; ++item) {
 		int op = GetParam(item);
+		int skip;
 
 		if_OPT_XMC_GLITCH(screen, {
 		    Mark_XMC(xw, op);
@@ -3075,7 +3101,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		 * Only SGR 38/48 accept subparameters, and in those cases
 		 * the values will not be seen at this point.
 		 */
-		if (param_has_subparams(item)) {
+		if ((skip = param_has_subparams(item))) {
 		    switch (op) {
 		    case 38:
 			/* FALLTHRU */
@@ -3086,8 +3112,8 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 			/* FALLTHRU */
 		    default:
 			TRACE(("...unexpected subparameter in SGR\n"));
-			op = 9999;
-			ResetState(sp);
+			item += skip;	/* ignore this */
+			op = 9999;	/* will never use this, anyway */
 			break;
 		    }
 		}
@@ -5823,7 +5849,7 @@ really_set_mousemode(XtermWidget xw,
 
 #define set_mousemode(mode) really_set_mousemode(xw, IsSM(), mode)
 
-#if OPT_READLINE
+#if OPT_PASTE64 || OPT_READLINE
 #define set_mouseflag(f)		\
 	(IsSM()				\
 	 ? SCREEN_FLAG_set(screen, f)	\
@@ -6228,6 +6254,11 @@ dpmodes(XtermWidget xw, BitFunc func)
 	    set_keyboard_type(xw, keyboardIsVT220, IsSM());
 	    break;
 #endif
+#if OPT_PASTE64 || OPT_READLINE
+	case srm_PASTE_IN_BRACKET:
+	    set_mouseflag(paste_brackets);
+	    break;
+#endif
 #if OPT_READLINE
 	case srm_BUTTON1_MOVE_POINT:
 	    set_mouseflag(click1_moves);
@@ -6237,9 +6268,6 @@ dpmodes(XtermWidget xw, BitFunc func)
 	    break;
 	case srm_DBUTTON3_DELETE:
 	    set_mouseflag(dclick3_deletes);
-	    break;
-	case srm_PASTE_IN_BRACKET:
-	    set_mouseflag(paste_brackets);
 	    break;
 	case srm_PASTE_QUOTE:
 	    set_mouseflag(paste_quotes);
@@ -6502,6 +6530,11 @@ savemodes(XtermWidget xw)
 		CursorSave(xw);
 	    }
 	    break;
+#if OPT_PASTE64 || OPT_READLINE
+	case srm_PASTE_IN_BRACKET:
+	    SCREEN_FLAG_save(screen, paste_brackets);
+	    break;
+#endif
 #if OPT_READLINE
 	case srm_BUTTON1_MOVE_POINT:
 	    SCREEN_FLAG_save(screen, click1_moves);
@@ -6511,9 +6544,6 @@ savemodes(XtermWidget xw)
 	    break;
 	case srm_DBUTTON3_DELETE:
 	    SCREEN_FLAG_save(screen, dclick3_deletes);
-	    break;
-	case srm_PASTE_IN_BRACKET:
-	    SCREEN_FLAG_save(screen, paste_brackets);
 	    break;
 	case srm_PASTE_QUOTE:
 	    SCREEN_FLAG_save(screen, paste_quotes);
@@ -6848,6 +6878,11 @@ restoremodes(XtermWidget xw)
 	case srm_LEGACY_FKEYS:
 	    xw->keyboard.type = (xtermKeyboardType) screen->save_modes[DP_KEYBOARD_TYPE];
 	    break;
+#if OPT_PASTE64 || OPT_READLINE
+	case srm_PASTE_IN_BRACKET:
+	    SCREEN_FLAG_restore(screen, paste_brackets);
+	    break;
+#endif
 #if OPT_READLINE
 	case srm_BUTTON1_MOVE_POINT:
 	    SCREEN_FLAG_restore(screen, click1_moves);
@@ -6857,9 +6892,6 @@ restoremodes(XtermWidget xw)
 	    break;
 	case srm_DBUTTON3_DELETE:
 	    SCREEN_FLAG_restore(screen, dclick3_deletes);
-	    break;
-	case srm_PASTE_IN_BRACKET:
-	    SCREEN_FLAG_restore(screen, paste_brackets);
 	    break;
 	case srm_PASTE_QUOTE:
 	    SCREEN_FLAG_restore(screen, paste_quotes);
@@ -9751,7 +9783,9 @@ VTDestroy(Widget w GCC_UNUSED)
     if (screen->selection_atoms)
 	XtFree((void *) (screen->selection_atoms));
 
-    XtFree((void *) (screen->selection_data));
+    for (n = 0; n < MAX_SELECTIONS; ++n) {
+	free(screen->selected_cells[n].data_buffer);
+    }
 
     TRACE_FREE_LEAK(xtermClassRec.core_class.tm_table);
     TRACE_FREE_LEAK(xw->keyboard.extra_translations);
@@ -10796,6 +10830,7 @@ reverseCgs(XtermWidget xw, unsigned attr_flags, Bool hilite, int font)
     TScreen *screen = TScreenOf(xw);
     CgsEnum result = gcMAX;
 
+    (void) screen;
     if (ReverseOrHilite(screen, attr_flags, hilite)) {
 	switch (font) {
 	case fNorm:
@@ -11735,11 +11770,13 @@ ReallyReset(XtermWidget xw, Bool full, Bool saved)
 #if OPT_DEC_RECTOPS
 	screen->cur_decsace = 0;
 #endif
+#if OPT_PASTE64 || OPT_READLINE
+	screen->paste_brackets = OFF;
+#endif
 #if OPT_READLINE
 	screen->click1_moves = OFF;
 	screen->paste_moves = OFF;
 	screen->dclick3_deletes = OFF;
-	screen->paste_brackets = OFF;
 	screen->paste_quotes = OFF;
 	screen->paste_literal_nl = OFF;
 #endif /* OPT_READLINE */

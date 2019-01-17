@@ -1,12 +1,58 @@
 The NEWS file was generated from xterm.log.html, which serves as the changelog
 for xterm.
 --------------------------------------------------------------------------------
-                            Patch #337 - 2018/09/21
+                            Patch #338 - 2018/12/09
 
-     * regenerated configure script (report by Sven Joachim).
-     * revise/improve  fix  for  scrolling  in margins (report/analysis by
-       Martin Hostettler):
-     * amend change to default-translations "select" subset to ensure that
-       specific  key-press  actions  are  listed  before generic key-press
-       actions (reports by H Merijn Brand, Sven Joachim).
+     * ignore  $TERMINFO  in  the  configure  script  if  it  is  set to a
+       non-directory value.
+     * updated configure macros:
+          + CF_WITH_PCRE2,  modified  to work with Debian's (mis-numbered)
+            pcre3 package.
+          + CF_CC_ENV_FLAGS , report preprocessor options in CFLAGS
+          + CF_LD_RPATH_OPT , suppress check if --disable-rpath option was
+            given.
+          + CF_XOPEN_SOURCE, add case for midnightbsd
+     * update config.guess, config.sub
+     * add  a  check  to  ensure  that  the  filename  parameter passed to
+       XpmReadFileToPixmap  is  actually  a file, since that function does
+       not check (report by Ben Nott).
+     * amend  solution  for  Debian  #758633  to  ensure  that replies for
+       bracketed  paste  are  not  sent  while  processing a selection for
+       exec-formatted (Debian #913237).
+     * improve adjustments/clearing for double-width characters in DECERA,
+       DECFRA, DECSERA.
+     * improve adjustments/clearing for double-width characters when doing
+       vertical  scrolling  within  left/right  margins  (patch  by Martin
+       Hostettler).
+     * modify  wcwidth  to encode a few spacing combining marks as regular
+       combining characters.
+     * change compiled-in default for saveLines to match the resource-file
+       changed in patch #192 (Debian #913815).
+     * change  default  faceSize  to 8.0, to simplify switching back/forth
+       between  bitmap fonts and TrueType. This was originally (mis)set to
+       14.0 in patch #148.
+     * add  fallback  support  in  Xft  configuration  for  missing glyphs
+       (prompted by discussion with Mike Burns).
+     * fix  a  problem  with  using direct-colors for the background color
+       when clearing/scrolling (report by Nicholas Marriott).
+     * add a "sources" rule for the makefile's generated source.
+     * add a short explanation in ctlseqs.ms discussing the differences in
+       error-recovery   for   malformed   sequences  versus  unimplemented
+       features,   and   amend  one  case  for  consistency  (prompted  by
+       discussion with Martin Hostettler).
+     * adjusted  ifdef's  so  that  the  paste64 configure option does not
+       automatically enable the readline-mouse configure option.
+     * revert the change which prevented concurrent ownership of different
+       selection  targets,  and  instead  modify selection storage so that
+       different  concurrent requests for different selection targets will
+       be stored/retrieved independently (Debian #901249).
+     * remove  a  check  which  prevented  returning button-codes past the
+       documented  4/5 for wheel mouse, and add a script mouse-codes which
+       makes  a  report  showing  the  various  mouse  codes for different
+       button/modifier combinations (discussion with Přemysl Janouch).
+     * improve  display  and  checksum for DEC Special Graphics by mapping
+       0x5f to 0.
+     * add  a  null-pointer check for table-ending in the extended-boolean
+       resource-handling (report by Felix von Leitner).
+     * remove stray ]'s from INSTALL-file (Larry Hynes).
 

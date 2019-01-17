@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.845 2018/08/25 00:54:35 tom Exp $ */
+/* $XTermId: misc.c,v 1.849 2018/12/09 14:54:28 tom Exp $ */
 
 /*
  * Copyright 1999-2017,2018 by Thomas E. Dickey
@@ -3165,12 +3165,20 @@ ManipulateSelectionData(XtermWidget xw, TScreen *screen, char *buf, int final)
 		    }
 		} else {
 		    if (AllowWindowOps(xw, ewSetSelection)) {
-			TRACE(("Setting selection with %s\n", buf));
+			char *old = buf;
+
+			TRACE(("Setting selection(%s) with %s\n", used, buf));
 			screen->selection_time =
 			    XtLastTimestampProcessed(TScreenOf(xw)->display);
-			ClearSelectionBuffer(screen);
-			while (*buf != '\0')
-			    AppendToSelectionBuffer(screen, CharOf(*buf++));
+
+			for (j = 0, buf = old; j < n; ++j) {
+			    ClearSelectionBuffer(screen, select_args[j]);
+			    while (*buf != '\0') {
+				AppendToSelectionBuffer(screen,
+							CharOf(*buf++),
+							select_args[j]);
+			    }
+			}
 			CompleteSelection(xw, select_args, n);
 		    }
 		    free(select_args);
@@ -5017,6 +5025,11 @@ do_dec_rqm(XtermWidget xw, int nparams, int *params)
 	    result = MdBool(xw->keyboard.type == keyboardIsVT220);
 	    break;
 #endif
+#if OPT_PASTE64 || OPT_READLINE
+	case srm_PASTE_IN_BRACKET:
+	    result = MdBool(SCREEN_FLAG(screen, paste_brackets));
+	    break;
+#endif
 #if OPT_READLINE
 	case srm_BUTTON1_MOVE_POINT:
 	    result = MdBool(SCREEN_FLAG(screen, click1_moves));
@@ -5026,9 +5039,6 @@ do_dec_rqm(XtermWidget xw, int nparams, int *params)
 	    break;
 	case srm_DBUTTON3_DELETE:
 	    result = MdBool(SCREEN_FLAG(screen, dclick3_deletes));
-	    break;
-	case srm_PASTE_IN_BRACKET:
-	    result = MdBool(SCREEN_FLAG(screen, paste_brackets));
 	    break;
 	case srm_PASTE_QUOTE:
 	    result = MdBool(SCREEN_FLAG(screen, paste_quotes));
@@ -5144,8 +5154,8 @@ x_find_icon(char **work, int *state, const char *filename, const char *suffix)
 	    *work = result;
 	}
 	*state += 1;
-	TRACE(("x_find_icon %d:%s\n", *state, result));
     }
+    TRACE(("x_find_icon %d:%s ->%s\n", *state, filename, NonNull(result)));
     return result;
 }
 
@@ -5231,21 +5241,31 @@ xtermLoadIcon(XtermWidget xw, const char *icon_hint)
 	    Pixmap resIcon = 0;
 	    Pixmap shapemask = 0;
 	    XpmAttributes attributes;
+	    struct stat sb;
 
 	    attributes.depth = (unsigned) getVisualDepth(xw);
 	    attributes.valuemask = XpmDepth;
 
-	    if (XpmReadFileToPixmap(dpy,
-				    DefaultRootWindow(dpy),
-				    workname,
-				    &resIcon,
-				    &shapemask,
-				    &attributes) == XpmSuccess) {
-		myIcon = resIcon;
-		myMask = shapemask;
-		TRACE(("...success\n"));
-		ReportIcons(("found/loaded icon-file %s\n", workname));
-		break;
+	    if (IsEmpty(workname)
+		|| lstat(workname, &sb) != 0
+		|| !S_ISREG(sb.st_mode)) {
+		TRACE(("...failure (no such file)\n"));
+	    } else {
+		int rc = XpmReadFileToPixmap(dpy,
+					     DefaultRootWindow(dpy),
+					     workname,
+					     &resIcon,
+					     &shapemask,
+					     &attributes);
+		if (rc == XpmSuccess) {
+		    myIcon = resIcon;
+		    myMask = shapemask;
+		    TRACE(("...success\n"));
+		    ReportIcons(("found/loaded icon-file %s\n", workname));
+		    break;
+		} else {
+		    TRACE(("...failure (%s)\n", XpmGetErrorString(rc)));
+		}
 	    }
 	}
     }

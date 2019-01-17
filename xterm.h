@@ -1,4 +1,4 @@
-/* $XTermId: xterm.h,v 1.811 2018/09/20 23:50:44 tom Exp $ */
+/* $XTermId: xterm.h,v 1.814 2018/12/10 00:27:01 tom Exp $ */
 
 /*
  * Copyright 1999-2017,2018 by Thomas E. Dickey
@@ -860,8 +860,8 @@ extern void SendFocusButton(XtermWidget /* xw */, XFocusChangeEvent * /* event *
 #endif
 
 #if OPT_PASTE64
-extern void AppendToSelectionBuffer (TScreen * /* screen */, unsigned  /* c */);
-extern void ClearSelectionBuffer (TScreen * /* screen */);
+extern void AppendToSelectionBuffer (TScreen * /* screen */, unsigned  /* c */, String /* selection */);
+extern void ClearSelectionBuffer (TScreen * /* screen */, String /* selection */);
 extern void CompleteSelection (XtermWidget  /* xw */, String * /* args */, Cardinal  /* len */);
 extern void xtermGetSelection (Widget  /* w */, Time  /* ev_time */, String * /* params */, Cardinal  /* num_params */, Atom * /* targets */);
 #endif
@@ -1300,7 +1300,7 @@ extern int ScreenResize (XtermWidget /* xw */, int  /* width */, int  /* height 
 extern size_t ScrnPointers (TScreen * /* screen */, size_t  /* len */);
 extern void ClearBufRows (XtermWidget /* xw */, int  /* first */, int  /* last */);
 extern void ClearCells (XtermWidget /* xw */, int /* flags */, unsigned /* len */, int /* row */, int /* col */);
-extern void CopyCells (TScreen * /* screen */, LineData * /* src */, LineData * /* dst */, int /* col */, int /* len */, Boolean /* down */);
+extern void CopyCells (TScreen * /* screen */, LineData * /* src */, LineData * /* dst */, int /* col */, int /* len */, Bool /* down */);
 extern void FullScreen (XtermWidget /* xw */, int /* mode */);
 extern void ScrnAllocBuf (XtermWidget /* xw */);
 extern void ScrnClearCells (XtermWidget /* xw */, int /* row */, int /* col */, unsigned /* len */);
@@ -1565,6 +1565,7 @@ extern void discardRenderDraw(TScreen * /* screen */);
 #define xtermColorPair(xw) 0
 
 #define checkVeryBoldColors(flags, fg) /* nothing */
+#define discardRenderDraw(screen) /* nothing */
 
 #endif	/* OPT_ISO_COLORS */
 
