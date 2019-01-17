@@ -1,21 +1,13 @@
 The NEWS file was generated from xterm.log.html, which serves as the changelog
 for xterm.
 --------------------------------------------------------------------------------
-                            Patch #341 - 2018/12/24
+                            Patch #342 - 2019/01/03
 
-     * add  options to mouse-codes script to demonstrate that the encoding
-       used for mouse events limits button numbers to 11.
-     * allow  mouse  button  numbers  up  to 11 using an offset of 128 for
-       button  numbers  8-11  rather  than  the  offset  of  64  used  for
-       wheel-mouse, etc., buttons 4-7 in patch #338 (adapted from patch by
-       Martin Hostettler).
-     * correct  off-by-one  right-margin checks for double-width character
-       adjustments in DECERA/DECFRA (patch by by Martin Hostettler).
-     * allocated  size  of selection buffer was not reset when freeing the
-       buffer in patch #338 (report/analysis by Stefan Assmann).
-     * modify  the  initial pattern passed to fontconfig to disallow color
-       bitmap fonts.
-     * improve  error  recovery  for  a  case where fontconfig ignores the
-       requested  pattern due to override in the user's font configuration
-       (report/testcase by Stefan Assmann).
+     * limit  mouse-button  events to 11 buttons in the original protocol,
+       and 15 in the extended mouse-protocol (patch by Martin Hostettler).
+     * correct  calculation  for  buttons  past  11  in mouse-codes sample
+       script (patch by Martin Hostettler).
+     * disable  a supplementary check added in patch #341 which interferes
+       with  using fontconfig to select different-sized bitmap fonts (Arch
+       #61237).
 
