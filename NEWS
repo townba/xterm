@@ -1,9 +1,11 @@
 The NEWS file was generated from xterm.log.html, which serves as the changelog
 for xterm.
 --------------------------------------------------------------------------------
-                            Patch #339 - 2018/12/12
+                            Patch #340 - 2018/12/16
 
-     * modify  CF_GNU_SOURCE  macro  to  treat newlib as similar to glibc,
-       fixing  a  problem with the configure checks for pseudoterminals in
-       Cygwin overlooked in patch #334 updates for configure-macros.
+     * suppress  a spurious warning about fontsets when initializing menus
+       for the toolbar configuration.
+     * fix some strict compiler warnings.
+     * improve  checks  for  TrueType font, to help with the case of color
+       bitmap fonts, which fontconfig misrepresents (Arch Linux #58706).
 
