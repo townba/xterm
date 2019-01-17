@@ -1,11 +1,21 @@
 The NEWS file was generated from xterm.log.html, which serves as the changelog
 for xterm.
 --------------------------------------------------------------------------------
-                            Patch #340 - 2018/12/16
+                            Patch #341 - 2018/12/24
 
-     * suppress  a spurious warning about fontsets when initializing menus
-       for the toolbar configuration.
-     * fix some strict compiler warnings.
-     * improve  checks  for  TrueType font, to help with the case of color
-       bitmap fonts, which fontconfig misrepresents (Arch Linux #58706).
+     * add  options to mouse-codes script to demonstrate that the encoding
+       used for mouse events limits button numbers to 11.
+     * allow  mouse  button  numbers  up  to 11 using an offset of 128 for
+       button  numbers  8-11  rather  than  the  offset  of  64  used  for
+       wheel-mouse, etc., buttons 4-7 in patch #338 (adapted from patch by
+       Martin Hostettler).
+     * correct  off-by-one  right-margin checks for double-width character
+       adjustments in DECERA/DECFRA (patch by by Martin Hostettler).
+     * allocated  size  of selection buffer was not reset when freeing the
+       buffer in patch #338 (report/analysis by Stefan Assmann).
+     * modify  the  initial pattern passed to fontconfig to disallow color
+       bitmap fonts.
+     * improve  error  recovery  for  a  case where fontconfig ignores the
+       requested  pattern due to override in the user's font configuration
+       (report/testcase by Stefan Assmann).
 

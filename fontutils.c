@@ -1,4 +1,4 @@
-/* $XTermId: fontutils.c,v 1.609 2018/12/15 15:05:02 tom Exp $ */
+/* $XTermId: fontutils.c,v 1.619 2018/12/24 20:11:50 tom Exp $ */
 
 /*
  * Copyright 1998-2017,2018 by Thomas E. Dickey
@@ -2209,6 +2209,8 @@ xtermSetCursorBox(TScreen *screen)
     screen->box = VTbox;
 }
 
+#if OPT_RENDERFONT
+
 #define CACHE_XFT(dst,src) if (src.font != 0) {\
 	    int err = checkXft(xw, &(dst[fontnum]), &src);\
 	    TRACE(("Xft metrics %s[%d] = %d (%d,%d)%s advance %d, actual %d%s%s\n",\
@@ -2224,11 +2226,10 @@ xtermSetCursorBox(TScreen *screen)
 		err ? " ERROR" : ""));\
 	    if (err) {\
 		xtermCloseXft(screen, &src);\
+		memset((&dst[fontnum]), 0, sizeof(dst[fontnum]));\
 		failed += err;\
 	    }\
 	}
-
-#if OPT_RENDERFONT
 
 #if OPT_REPORT_FONTS
 static FcChar32
@@ -2315,37 +2316,44 @@ dumpXft(XtermWidget xw, XTermXftFonts *data)
 #define DUMP_XFT(xw, data)	/* nothing */
 #endif
 
+/*
+ * Check if this is a FC_COLOR font, which fontconfig misrepresents to "fix" a
+ * problem with web browsers.  As of 2018/12 (4 years later), Xft does not work
+ * with that.
+ */
+#ifdef FC_COLOR
+#define GetFcBool(pattern, what) \
+    (FcPatternGetBool(pattern, what, 0, &fcbogus) == FcResultMatch)
+
+static Boolean
+isBogusXft(XftFont *font)
+{
+    Boolean result = False;
+    if (font != 0) {
+	FcBool fcbogus;
+	if (GetFcBool(font->pattern, FC_COLOR) && fcbogus) {
+	    TRACE(("...matched color-bitmap font\n"));
+	    result = True;
+	} else if (GetFcBool(font->pattern, FC_OUTLINE) && !fcbogus) {
+	    TRACE(("...matched non-outline font\n"));
+	    result = True;
+	}
+    }
+    return result;
+}
+#endif
+
 static int
 checkXft(XtermWidget xw, XTermXftFonts *target, XTermXftFonts *source)
 {
     FcChar32 c;
     Dimension width = 0;
     int failed = 0;
-    FcChar32 lo_check = 32;
-    FcChar32 hi_check = 255;
-#ifdef FC_COLOR
-    FcBool fcbogus;
-#endif
 
     target->font = source->font;
     target->pattern = source->pattern;
     target->map.min_width = 0;
     target->map.max_width = (Dimension) source->font->max_advance_width;
-
-#ifdef FC_COLOR
-#define GetFcBogus(pattern, what) \
-    (FcPatternGetBool(pattern, what, 0, &fcbogus) == FcResultMatch)
-    /*
-     * Check if this is a FC_COLOR font, which fontconfig misrepresents to
-     * "fix" a problem with web browsers.  As of 2018/12 (4 years later),
-     * Xft does not work with that.
-     */
-    if (GetFcBogus(source->pattern, FC_COLOR)
-	&& fcbogus) {
-	lo_check = 0;
-	hi_check = 0;
-    }
-#endif
 
     /*
      * For each ASCII or ISO-8859-1 printable code, ask what its width is.
@@ -2354,7 +2362,7 @@ checkXft(XtermWidget xw, XTermXftFonts *target, XTermXftFonts *source)
      *
      * Ignore control characters - their extent information is misleading.
      */
-    for (c = lo_check; c < hi_check; ++c) {
+    for (c = 32; c < 255; ++c) {
 	if (c >= 127 && c <= 159)
 	    continue;
 	if (FcCharSetHasChar(source->font->charset, c)) {
@@ -2502,7 +2510,17 @@ xtermOpenXft(XtermWidget xw, const char *name, XftPattern *pat, const char *tag)
 
 	match = FcFontMatch(NULL, pat, &status);
 	if (match != 0) {
+	    Boolean maybeReopened = False;
 	    result = XftFontOpenPattern(dpy, match);
+#ifdef FC_COLOR
+	    if (result != 0) {
+		if (isBogusXft(result)) {
+		    XftFontClose(dpy, result);
+		    result = 0;
+		    maybeReopened = True;
+		}
+	    }
+#endif
 	    if (result != 0) {
 		TRACE(("...matched %s font\n", tag));
 		if (!maybeXftCache(xw, result)) {
@@ -2510,7 +2528,8 @@ xtermOpenXft(XtermWidget xw, const char *name, XftPattern *pat, const char *tag)
 		}
 	    } else {
 		TRACE(("...could not open %s font\n", tag));
-		XftPatternDestroy(match);
+		if (!maybeReopened)
+		    XftPatternDestroy(match);
 		if (xw->misc.fontWarnings >= fwAlways) {
 		    cannotFont(xw, "open", tag, name);
 		}
@@ -2524,9 +2543,7 @@ xtermOpenXft(XtermWidget xw, const char *name, XftPattern *pat, const char *tag)
     }
     return result;
 }
-#endif
 
-#if OPT_RENDERFONT
 #if OPT_SHIFT_FONTS
 /*
  * Don't make a dependency on the math library for a single function.
@@ -2860,9 +2877,12 @@ static void
 checkFontInfo(int value, const char *tag, int failed)
 {
     if (value == 0 || failed) {
-	xtermWarning("Selected font has no non-zero %s for ISO-8859-1 encoding\n", tag);
-	if (value == 0)
+	if (value == 0) {
+	    xtermWarning("Selected font has no non-zero %s for ISO-8859-1 encoding\n", tag);
 	    exit(1);
+	} else {
+	    xtermWarning("Selected font has no valid %s for ISO-8859-1 encoding\n", tag);
+	}
     }
 }
 
@@ -2892,7 +2912,7 @@ xtermCloseXft(TScreen *screen, XTermXftFonts *pub)
 }
 
 /*
- * Get the faceName/faceDoublesize resource setting.
+ * Get the faceName/faceNameDoublesize resource setting.
  */
 String
 getFaceName(XtermWidget xw, Bool wideName GCC_UNUSED)
@@ -2969,7 +2989,7 @@ xtermComputeFontInfo(XtermWidget xw,
 	XTermXftFonts wital = screen->renderWideItal[fontnum];
 #endif
 
-	if (norm.font == 0 && face_name) {
+	if (norm.font == 0 && !IsEmpty(face_name)) {
 	    XftPattern *pat;
 	    double face_size;
 
@@ -2988,16 +3008,24 @@ xtermComputeFontInfo(XtermWidget xw,
 	     * cumulative.  Build the bold- and italic-patterns on top of the
 	     * normal pattern.
 	     */
+#ifdef FC_COLOR
 #define NormXftPattern \
-	    XFT_FAMILY, XftTypeString, "mono", \
-	    XFT_SIZE, XftTypeDouble, face_size
+	    XFT_FAMILY,     XftTypeString, "mono", \
+	    FC_COLOR,       XftTypeBool,   FcFalse, \
+	    FC_OUTLINE,     XftTypeBool,   FcTrue, \
+	    XFT_SIZE,       XftTypeDouble, face_size
+#else
+#define NormXftPattern \
+	    XFT_FAMILY,     XftTypeString, "mono", \
+	    XFT_SIZE,       XftTypeDouble, face_size
+#endif
 
 #define BoldXftPattern(norm) \
-	    XFT_WEIGHT, XftTypeInteger, XFT_WEIGHT_BOLD, \
+	    XFT_WEIGHT,     XftTypeInteger, XFT_WEIGHT_BOLD, \
 	    XFT_CHAR_WIDTH, XftTypeInteger, norm.font->max_advance_width
 
 #define ItalXftPattern(norm) \
-	    XFT_SLANT, XftTypeInteger, XFT_SLANT_ITALIC, \
+	    XFT_SLANT,      XftTypeInteger, XFT_SLANT_ITALIC, \
 	    XFT_CHAR_WIDTH, XftTypeInteger, norm.font->max_advance_width
 
 #if OPT_WIDE_ATTRS
@@ -3019,15 +3047,16 @@ xtermComputeFontInfo(XtermWidget xw,
 		OPEN_XFT(norm, "normal");
 
 		if (norm.font != 0) {
-		    bold.pattern = XftPatternDuplicate(norm.pattern);
+		    bold.pattern = XftPatternDuplicate(pat);
 		    XftPatternBuild(bold.pattern,
+				    NormXftPattern,
 				    BoldXftPattern(norm),
 				    (void *) 0);
 		    OPEN_XFT(bold, "bold");
 
 #if HAVE_ITALICS
 		    if (FIND_ITALICS) {
-			ital.pattern = XftPatternDuplicate(norm.pattern);
+			ital.pattern = XftPatternDuplicate(pat);
 			XftPatternBuild(ital.pattern,
 					NormXftPattern,
 					ItalXftPattern(norm),
@@ -3035,7 +3064,6 @@ xtermComputeFontInfo(XtermWidget xw,
 			OPEN_XFT(ital, "italic");
 		    }
 #endif
-#undef OPEN_XFT
 
 		    /*
 		     * FIXME:  just assume that the corresponding font has no
@@ -3048,25 +3076,51 @@ xtermComputeFontInfo(XtermWidget xw,
 		    }
 		}
 
-		XftPatternDestroy(pat);
-	    }
+		CACHE_XFT(screen->renderFontNorm, norm);
 
-	    CACHE_XFT(screen->renderFontNorm, norm);
-	    CACHE_XFT(screen->renderFontBold, bold);
-	    CACHE_XFT(screen->renderFontItal, ital);
+		CACHE_XFT(screen->renderFontBold, bold);
+		if (norm.font != 0 && !bold.font) {
+		    xtermWarning("did not find a usable bold TrueType font\n");
+		    XftPatternDestroy(bold.pattern);
+		    bold.pattern = XftPatternDuplicate(pat);
+		    XftPatternBuild(bold.pattern,
+				    NormXftPattern,
+				    (void *) 0);
+		    OPEN_XFT(bold, "bold");
+		    failed = 0;
+		    CACHE_XFT(screen->renderFontBold, bold);
+		}
+#if HAVE_ITALICS
+		CACHE_XFT(screen->renderFontItal, ital);
+		if (norm.font != 0 && !ital.font) {
+		    xtermWarning("did not find a usable italic TrueType font\n");
+		    XftPatternDestroy(ital.pattern);
+		    ital.pattern = XftPatternDuplicate(pat);
+		    XftPatternBuild(ital.pattern,
+				    NormXftPattern,
+				    (void *) 0);
+		    OPEN_XFT(ital, "italics");
+		    failed = 0;
+		    CACHE_XFT(screen->renderFontItal, ital);
+		}
+#endif
+		XftPatternDestroy(pat);
+	    } else {
+		failed = 1;
+	    }
+#undef OPEN_XFT
 
 	    /*
-	     * See xtermXftDrawString().
+	     * See xtermXftDrawString().  A separate double-width font is nice
+	     * to have, but not essential.
 	     */
 #if OPT_RENDERWIDE
 	    if (norm.font != 0 && screen->wide_chars) {
 		int char_width = norm.font->max_advance_width * 2;
-#ifdef FC_ASPECT
 		double aspect = ((FirstItemOf(xw->work.fonts.xft.list_w)
 				  || screen->renderFontNorm[fontnum].map.mixed)
 				 ? 1.0
 				 : 2.0);
-#endif
 
 		face_name = getFaceName(xw, True);
 		TRACE(("xtermComputeFontInfo wide(face %s, char_width %d)\n",
@@ -3074,25 +3128,24 @@ xtermComputeFontInfo(XtermWidget xw,
 		       char_width));
 
 #define WideXftPattern \
-		XFT_FAMILY, XftTypeString, "mono", \
-		XFT_SIZE, XftTypeDouble, face_size, \
-		XFT_SPACING, XftTypeInteger, XFT_MONO
+		XFT_FAMILY,     XftTypeString,   "mono", \
+		XFT_SIZE,       XftTypeDouble,   face_size, \
+		XFT_SPACING,    XftTypeInteger,  XFT_MONO, \
+		XFT_CHAR_WIDTH, XftTypeInteger,  char_width, \
+		FC_ASPECT,      XftTypeDouble,   aspect
 
-		if (face_name && (pat = XftNameParse(face_name)) != 0) {
+		if (!IsEmpty(face_name) && (pat = XftNameParse(face_name))
+		    != 0) {
 #define OPEN_XFT(name, tag) name.font = xtermOpenXft(xw, face_name, name.pattern, tag)
 		    wnorm.pattern = XftPatternDuplicate(pat);
 		    XftPatternBuild(wnorm.pattern,
 				    WideXftPattern,
-				    XFT_CHAR_WIDTH, XftTypeInteger, char_width,
-#ifdef FC_ASPECT
-				    FC_ASPECT, XftTypeDouble, aspect,
-#endif
 				    (void *) 0);
 		    OPEN_XFT(wnorm, "wide");
 
 		    if (wnorm.font != 0) {
-			wbold.pattern = XftPatternDuplicate(wnorm.pattern);
-			XftPatternBuild(pat,
+			wbold.pattern = XftPatternDuplicate(pat);
+			XftPatternBuild(wbold.pattern,
 					WideXftPattern,
 					BoldXftPattern(wnorm),
 					(void *) 0);
@@ -3100,22 +3153,47 @@ xtermComputeFontInfo(XtermWidget xw,
 
 #if HAVE_ITALICS
 			if (FIND_ITALICS) {
-			    wital.pattern = XftPatternDuplicate(wnorm.pattern);
-			    XftPatternBuild(pat,
+			    wital.pattern = XftPatternDuplicate(pat);
+			    XftPatternBuild(wital.pattern,
 					    WideXftPattern,
 					    ItalXftPattern(wnorm),
 					    (void *) 0);
 			    OPEN_XFT(wital, "wide-italic");
 			}
 #endif
-#undef OPEN_XFT
 		    }
+
+		    CACHE_XFT(screen->renderWideNorm, wnorm);
+
+		    CACHE_XFT(screen->renderWideBold, wbold);
+		    if (wnorm.font != 0 && !wbold.font) {
+			xtermWarning("did not find a usable wide-bold TrueType font\n");
+			XftPatternDestroy(wbold.pattern);
+			wbold.pattern = XftPatternDuplicate(pat);
+			XftPatternBuild(bold.pattern,
+					WideXftPattern,
+					(void *) 0);
+			OPEN_XFT(wbold, "wide-bold");
+			failed = 0;
+			CACHE_XFT(screen->renderWideBold, bold);
+		    }
+
+		    CACHE_XFT(screen->renderWideItal, wital);
+		    if (wnorm.font != 0 && !wital.font) {
+			xtermWarning("did not find a usable wide-italic TrueType font\n");
+			XftPatternDestroy(wital.pattern);
+			wital.pattern = XftPatternDuplicate(pat);
+			XftPatternBuild(wital.pattern,
+					WideXftPattern,
+					(void *) 0);
+			OPEN_XFT(wital, "wide-italic");
+			failed = 0;
+			CACHE_XFT(screen->renderWideItal, wital);
+		    }
+
 		    XftPatternDestroy(pat);
 		}
-
-		CACHE_XFT(screen->renderWideNorm, wnorm);
-		CACHE_XFT(screen->renderWideBold, wbold);
-		CACHE_XFT(screen->renderWideItal, wital);
+#undef OPEN_XFT
 	    }
 #endif /* OPT_RENDERWIDE */
 	}
@@ -3726,8 +3804,9 @@ findXftGlyph(XtermWidget xw, XftFont *given, unsigned wc)
 	return 0;
     }
     /* the end of the BMP is reserved for non-characters */
-    if (wc >= 0xfff0 && wc <= 0xffff)
+    if (wc >= 0xfff0 && wc <= 0xffff) {
 	return 0;
+    }
 
     for (n = 0; n < XtNumber(table); ++n) {
 	XTermXftFonts *check = (XTermXftFonts *) ((void *) ((char *) screen
@@ -3832,15 +3911,8 @@ findXftGlyph(XtermWidget xw, XftFont *given, unsigned wc)
 		    }
 #ifdef FC_COLOR
 		    if (!giveup) {
-			FcBool fcbogus;
-			if (GetFcBogus(check->pattern, FC_COLOR)
-			    && (fcbogus != FcFalse)) {
+			if (isBogusXft(check)) {
 			    giveup = True;
-			    TRACE(("ignoring color-bitmap font match by fontconfig\n"));
-			} else if (GetFcBogus(check->pattern, FC_OUTLINE)
-				   && (fcbogus == FcFalse)) {
-			    giveup = True;
-			    TRACE(("ignoring non-scalable font match by fontconfig\n"));
 			}
 		    }
 #endif
