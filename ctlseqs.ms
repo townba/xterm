@@ -1,9 +1,9 @@
 .\"#! troff -ms $1		-*- Nroff -*-
 .\" "Xterm Control Sequences" document
-.\" $XTermId: ctlseqs.ms,v 1.486 2018/12/24 15:29:04 tom Exp $
+.\" $XTermId: ctlseqs.ms,v 1.491 2019/02/13 02:13:36 tom Exp $
 .\"
 .\"
-.\" Copyright 1996-2017,2018 by Thomas E. Dickey
+.\" Copyright 1996-2018,2019 by Thomas E. Dickey
 .\"
 .\"                         All Rights Reserved
 .\"
@@ -69,8 +69,8 @@
 .\"
 .ds XT XTerm
 .ds xt xterm
-.ds LF Patch #341
-.ds RF 2018/12/24
+.ds LF Patch #344
+.ds RF 2019/02/12
 .\"
 .if n .pl 9999v		\" no page breaks in nroff
 .ND
@@ -348,7 +348,7 @@ X Consortium (1994)
 Thomas Dickey
 .AI
 XFree86 Project (1996-2006)
-invisible-island.net (2006-2018)
+invisible-island.net (2006-2019)
 updated for \*(XT \*(LF (\*(RF)
 .AU
 .
@@ -364,7 +364,7 @@ The literal character \fIc\fP.
 A single (required) character.
 .\".iP
 .IP \*(Ps
-A single (usually optional) numeric parameter, composed of one of more digits.
+A single (usually optional) numeric parameter, composed of one or more digits.
 .\".iP
 .IP \*(Pm
 A multiple numeric parameter composed of any number of single numeric
@@ -707,18 +707,20 @@ The final character \*A is a special case,
 since the same final character is
 used by the VT300-control for the 96-character British Latin-1.
 .br
-There are a few other 94-character sets not documented as NRCS:
+There are a few other 94-character sets:
   \*(Cc = \*0 \(-> DEC Special Character and Line Drawing Set, VT100.
   \*(Cc = \*< \(-> DEC Supplemental, VT200.
   \*(Cc = \*> \(-> DEC Technical, VT300.
+.br
+These are documented as NRCS:
   \*(Cc = \*%\*5 \(-> DEC Supplemental Graphics, VT300.
+  \*(Cc = \*&\*4 \(-> DEC Cyrillic, VT500.
   \*(Cc = \*(Dq\*? \(-> DEC Greek, VT500.
   \*(Cc = \*(Dq\*4 \(-> DEC Hebrew, VT500.
   \*(Cc = \*%\*0 \(-> DEC Turkish, VT500.
 .br
 The VT520 reference manual lists a few more,
 but no documentation has been found for the mappings:
-  \*(Cc = \*&\*4 \(-> DEC Cyrillic, VT500.
   \*(Cc = \*&\*5 \(-> DEC Russian, VT500.
   \*(Cc = \*%\*3 \(-> SCS NRCS, VT500.
 .iP
@@ -1234,7 +1236,7 @@ This is the X10 \fI\*(xt\fP mouse protocol.
   \*(Ps = \*3\*5 \(-> Enable font-shifting functions (rxvt).
   \*(Ps = \*3\*8 \(-> Enter Tektronix Mode (DECTEK), VT240, \fI\*(xt\fP.
   \*(Ps = \*4\*0 \(-> Allow 80 \z\(<-\(-> 132 Mode, \fI\*(xt\fP.
-  \*(Ps = \*4\*1 \(-> \fBmore\fP(1) fix (see \fBcurses\fP(3) resource).
+  \*(Ps = \*4\*1 \(-> \fBmore\fP(1) fix (see \fBcurses\fP resource).
   \*(Ps = \*4\*2 \(-> Enable National Replacement Character sets
 (DECNRCM), VT220.
   \*(Ps = \*4\*4 \(-> Turn On Margin Bell, \fI\*(xt\fP.
@@ -1358,7 +1360,7 @@ DEC Private Mode Reset (DECRST).
   \*(Ps = \*3\*0 \(-> Don't show scrollbar (rxvt).
   \*(Ps = \*3\*5 \(-> Disable font-shifting functions (rxvt).
   \*(Ps = \*4\*0 \(-> Disallow 80 \z\(<-\(-> 132 Mode, \fI\*(xt\fP.
-  \*(Ps = \*4\*1 \(-> No \fBmore\fP(1) fix (see \fBcurses\fP(3) resource).
+  \*(Ps = \*4\*1 \(-> No \fBmore\fP(1) fix (see \fBcurses\fP resource).
   \*(Ps = \*4\*2 \(-> Disable National Replacement Character sets (DECNRCM),
 VT220.
   \*(Ps = \*4\*4 \(-> Turn Off Margin Bell, \fI\*(xt\fP.

@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1623 2019/01/10 10:26:02 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1637 2019/02/11 10:21:54 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -1392,6 +1392,7 @@ static const struct {
 #endif
 #if OPT_WIDE_CHARS
 	,DATA(esc_pct_table)
+	,DATA(scs_amp_table)
 	,DATA(scs_pct_table)
 	,DATA(scs_2qt_table)
 #endif
@@ -1577,7 +1578,7 @@ dump_params(void)
 		type *new_string = area; \
 		size_t new_length = size; \
 		if (new_length == 0) { \
-		    new_length = 256; \
+		    new_length = 1024; \
 		    new_string = TypeMallocN(type, new_length); \
 		} else if (used+1 >= new_length) { \
 		    new_length = size * 2; \
@@ -1615,7 +1616,10 @@ dump_params(void)
 	    sp->print_used = 0;					\
 	}							\
 
+#define PARSE_SRM 1
+
 struct ParseState {
+    unsigned check_recur;
 #if OPT_VT52_MODE
     Bool vt52_cup;
 #endif
@@ -1638,6 +1642,10 @@ struct ParseState {
     Char *string_area;
     size_t string_size;
     size_t string_used;
+    /* Buffer for deferring input */
+    Char *defer_area;
+    size_t defer_size;
+    size_t defer_used;
 };
 
 static struct ParseState myState;
@@ -1707,6 +1715,7 @@ static struct {
     { nrc_Norwegian_Danish,  0,   '`', 3, 9, 1 },
     { nrc_Portugese,         '%', '6', 3, 9, 1 },
     /* VT5xx */
+    { nrc_Cyrillic,          '&', '4', 5, 9, 1 },
     { nrc_Greek,             '"', '>', 5, 9, 1 },
     { nrc_Hebrew,            '%', '=', 5, 9, 1 },
     { nrc_Turkish,	     '%', '2', 5, 9, 1 },
@@ -1719,7 +1728,6 @@ static struct {
     { nrc_ISO_Latin_Cyrillic,0,   'L', 5, 9, 0 },
     /* VT5xx (not implemented) */
 #if 0
-    { nrc_Cyrillic,          '&', '4', 5, 9, 0 },
     { nrc_Russian,           '&', '5', 5, 9, 1 },
     { nrc_SCS_NRCS,          '%', '3', 5, 9, 0 },
 #endif
@@ -2135,6 +2143,19 @@ init_reply(unsigned type)
     reply.a_type = (Char) type;
 }
 
+static void
+deferparsing(unsigned c, struct ParseState *sp)
+{
+    SafeAlloc(Char, sp->defer_area, sp->defer_used, sp->defer_size);
+    if (new_string == 0) {
+	xtermWarning("Cannot allocate %lu bytes for deferred parsing of %u\n",
+		     (unsigned long) new_length, c);
+	return;
+    }
+    SafeFree(sp->defer_area, sp->defer_size);
+    sp->defer_area[(sp->defer_used)++] = CharOf(c);
+}
+
 static Boolean
 doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 {
@@ -2148,6 +2169,14 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 #if OPT_DEC_RECTOPS
     int thispage = 1;
 #endif
+
+    if (sp->check_recur) {
+	/* Defer parsing when parser is already running as the parser is not
+	 * safe to reenter.
+	 */
+	deferparsing(c, sp);
+	return True;
+    }
 
     do {
 #if OPT_WIDE_CHARS
@@ -3906,7 +3935,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		if (nparam != 3) {
 		    TRACE(("DATA_ERROR: malformed CASE_GRAPHICS_ATTRIBUTES request with %d parameters\n", nparam));
 		} else {
-		    int status = 3;
+		    int status = 3;	/* assume failure */
 		    int result = 0;
 		    int result2 = 0;
 
@@ -3916,51 +3945,54 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		    case 1:	/* color register count */
 			switch (GetParam(1)) {
 			case 1:	/* read */
-			    status = 0;
+			    status = 0;		/* success */
 			    result = (int) get_color_register_count(screen);
 			    break;
 			case 2:	/* reset */
 			    screen->numcolorregisters = 0;
-			    status = 0;
+			    status = 0;		/* success */
 			    result = (int) get_color_register_count(screen);
 			    break;
 			case 3:	/* set */
 			    if (GetParam(2) > 1 &&
 				(unsigned) GetParam(2) <= MAX_COLOR_REGISTERS) {
 				screen->numcolorregisters = GetParam(2);
-				status = 0;
+				status = 0;	/* success */
 				result = (int) get_color_register_count(screen);
 			    }
 			    break;
 			case 4:	/* read maximum */
-			    status = 0;
+			    status = 0;		/* success */
 			    result = MAX_COLOR_REGISTERS;
 			    break;
 			default:
 			    TRACE(("DATA_ERROR: CASE_GRAPHICS_ATTRIBUTES color register count request with unknown action parameter: %d\n",
 				   GetParam(1)));
-			    status = 2;
+			    status = 2;		/* error in Pa */
 			    break;
 			}
 			break;
 		    case 2:	/* graphics geometry */
 			switch (GetParam(1)) {
 			case 1:	/* read */
-			    status = 0;
-			    result = screen->graphics_max_wide;
-			    result2 = screen->graphics_max_high;
+			    TRACE(("Get sixel graphics geometry\n"));
+			    status = 0;		/* success */
+			    result = Min(Width(screen), screen->graphics_max_wide);
+			    result2 = Min(Height(screen), screen->graphics_max_high);
 			    break;
 			case 2:	/* reset */
 			    /* FALLTHRU */
 			case 3:	/* set */
-			    /* FALLTHRU */
+			    break;
 			case 4:	/* read maximum */
-			    /* not implemented */
+			    status = 0;		/* success */
+			    result = screen->graphics_max_wide;
+			    result2 = screen->graphics_max_high;
 			    break;
 			default:
 			    TRACE(("DATA_ERROR: CASE_GRAPHICS_ATTRIBUTES graphics geometry request with unknown action parameter: %d\n",
 				   GetParam(1)));
-			    status = 2;
+			    status = 2;		/* error in Pa */
 			    break;
 			}
 			break;
@@ -3968,7 +4000,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		    case 3:	/* ReGIS geometry */
 			switch (GetParam(1)) {
 			case 1:	/* read */
-			    status = 0;
+			    status = 0;		/* success */
 			    result = screen->graphics_regis_def_wide;
 			    result2 = screen->graphics_regis_def_high;
 			    break;
@@ -3982,7 +4014,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 			default:
 			    TRACE(("DATA_ERROR: CASE_GRAPHICS_ATTRIBUTES ReGIS geometry request with unknown action parameter: %d\n",
 				   GetParam(1)));
-			    status = 2;
+			    status = 2;		/* error in Pa */
 			    break;
 			}
 			break;
@@ -4736,6 +4768,19 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	    ResetState(sp);
 	    break;
 
+	case CASE_SCS_AMPRSND:
+	    TRACE(("CASE_SCS_AMPRSND\n"));
+	    sp->parsestate = scs_amp_table;
+	    break;
+
+	case CASE_GSETS_AMPRSND:
+	    if (screen->vtXX_level >= 5) {
+		TRACE(("CASE_GSETS_AMPRSND(%d) = '%c'\n", sp->scstype, c));
+		xtermDecodeSCS(xw, sp->scstype, '&', (int) c);
+	    }
+	    ResetState(sp);
+	    break;
+
 	case CASE_SCS_PERCENT:
 	    TRACE(("CASE_SCS_PERCENT\n"));
 	    sp->parsestate = scs_pct_table;
@@ -4888,15 +4933,43 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
     return True;
 }
 
+static Boolean
+redoparsing(XtermWidget xw, unsigned c, struct ParseState *sp, unsigned check)
+{
+    Boolean result = False;
+    if (!(sp->check_recur & check)) {
+	UIntSet(sp->check_recur, check);
+	result = doparsing(xw, c, sp);
+	UIntClr(sp->check_recur, check);
+    }
+    return result;
+}
+
 static void
 VTparse(XtermWidget xw)
 {
+    Boolean keep_running;
+
     /* We longjmp back to this point in VTReset() */
     (void) setjmp(vtjmpbuf);
     init_parser(xw, &myState);
 
+    keep_running = False;
     do {
-    } while (doparsing(xw, doinput(), &myState));
+	keep_running = doparsing(xw, doinput(), &myState);
+	while (myState.defer_used) {
+	    Char *deferred = myState.defer_area;
+	    size_t len = myState.defer_used;
+	    size_t i;
+	    myState.defer_area = NULL;
+	    myState.defer_size = 0;
+	    myState.defer_used = 0;
+	    for (i = 0; i < len; i++) {
+		(void) doparsing(xw, deferred[i], &myState);
+	    }
+	    free(deferred);
+	}
+    } while (keep_running);
 }
 
 static Char *v_buffer;		/* pointer to physical buffer */
@@ -5738,8 +5811,24 @@ HandleStructNotify(Widget w GCC_UNUSED,
 		}
 	    }
 #else
-	    if (height != xw->hints.height || width != xw->hints.width)
+	    if (height != xw->hints.height || width != xw->hints.width) {
+#if OPT_DOUBLE_BUFFER
+		/*
+		 * This is a special case: other calls to RequestResize that
+		 * could set the screensize arbitrarily are via escape
+		 * sequences, and we've limited resizing.  But a configure
+		 * notify is from the window manager, presumably under control
+		 * of the interactive user (ignoring abuse of wmctrl).  Ignore
+		 * the limit for this case.
+		 */
+		int saved_limit = xw->misc.limit_resize;
+		xw->misc.limit_resize = 0;
 		RequestResize(xw, height, width, False);
+		xw->misc.limit_resize = saved_limit;
+#else
+		RequestResize(xw, height, width, False);
+#endif
+	    }
 #endif /* OPT_TOOLBAR */
 	}
 	break;
@@ -7559,7 +7648,7 @@ unparseputc(XtermWidget xw, int c)
 
     /* If send/receive mode is reset, we echo characters locally */
     if ((xw->keyboard.flags & MODE_SRM) == 0) {
-	(void) doparsing(xw, (unsigned) c, &myState);
+	(void) redoparsing(xw, (unsigned) c, &myState, PARSE_SRM);
     }
 }
 
@@ -8366,6 +8455,8 @@ VTInitialize(Widget wrequest,
 	,DATA(BS)
 	,DATA(CR)
 	,DATA(DEL)
+	,DATA(ESC)
+	,DATA(FF)
 	,DATA(HT)
 	,DATA(NL)
 	,DATA_END
@@ -9435,9 +9526,14 @@ VTInitialize(Widget wrequest,
 #if OPT_TOOLBAR
     wnew->VT100_TB_INFO(menu_bar) = request->VT100_TB_INFO(menu_bar);
     init_Ires(VT100_TB_INFO(menu_height));
+#elif !OPT_DOUBLE_BUFFER
+    /* Flag icon name with "***"  on window output when iconified.
+     * Put in a handler that will tell us when we get Map/Unmap events.
+     */
+    if (resource.zIconBeep)
 #endif
-    XtAddEventHandler(my_parent, StructureNotifyMask, False,
-		      HandleStructNotify, (Opaque) 0);
+	XtAddEventHandler(my_parent, StructureNotifyMask, False,
+			  HandleStructNotify, (Opaque) 0);
 #endif /* HANDLE_STRUCT_NOTIFY */
 
     screen->bellInProgress = False;
@@ -11825,6 +11921,13 @@ void
 VTReset(XtermWidget xw, Bool full, Bool saved)
 {
     ReallyReset(xw, full, saved);
+
+    free(myState.string_area);
+    myState.string_area = 0;
+
+    free(myState.print_area);
+    myState.print_area = 0;
+
     longjmp(vtjmpbuf, 1);	/* force ground state in parser */
 }
 
