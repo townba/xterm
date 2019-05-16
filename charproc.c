@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1637 2019/02/11 10:21:54 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1645 2019/05/03 00:10:48 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -493,6 +493,7 @@ static XtResource xterm_resources[] =
     Ires(XtNfontWarnings, XtCFontWarnings, misc.fontWarnings, fwResource),
     Ires(XtNinternalBorder, XtCBorderWidth, screen.border, DEFBORDER),
     Ires(XtNlimitResize, XtCLimitResize, misc.limit_resize, 1),
+    Ires(XtNlimitResponse, XtCLimitResponse, screen.unparse_max, DEF_LIMIT_RESPONSE),
     Ires(XtNmultiClickTime, XtCMultiClickTime, screen.multiClickTime, MULTICLICKTIME),
     Ires(XtNnMarginBell, XtCColumn, screen.nmarginbell, N_MARGINBELL),
     Ires(XtNpointerMode, XtCPointerMode, screen.pointer_mode, DEF_POINTER_MODE),
@@ -602,6 +603,8 @@ static XtResource xterm_resources[] =
 
 #if OPT_CLIP_BOLD
     Bres(XtNuseClipping, XtCUseClipping, screen.use_clipping, True),
+    Bres(XtNuseBorderClipping, XtCUseBorderClipping,
+	 screen.use_border_clipping, False),
 #endif
 
 #if OPT_DEC_CHRSET
@@ -5747,6 +5750,7 @@ HandleStructNotify(Widget w GCC_UNUSED,
     switch (event->type) {
     case MapNotify:
 	TRACE(("HandleStructNotify(MapNotify) %#lx\n", event->xmap.window));
+	/* repairSizeHints(); */
 	resetZIconBeep(xw);
 	mapstate = !IsUnmapped;
 	break;
@@ -5812,7 +5816,6 @@ HandleStructNotify(Widget w GCC_UNUSED,
 	    }
 #else
 	    if (height != xw->hints.height || width != xw->hints.width) {
-#if OPT_DOUBLE_BUFFER
 		/*
 		 * This is a special case: other calls to RequestResize that
 		 * could set the screensize arbitrarily are via escape
@@ -5825,9 +5828,6 @@ HandleStructNotify(Widget w GCC_UNUSED,
 		xw->misc.limit_resize = 0;
 		RequestResize(xw, height, width, False);
 		xw->misc.limit_resize = saved_limit;
-#else
-		RequestResize(xw, height, width, False);
-#endif
 	    }
 #endif /* OPT_TOOLBAR */
 	}
@@ -7621,8 +7621,8 @@ unparseputc(XtermWidget xw, int c)
     IChar *buf = screen->unparse_bfr;
     unsigned len;
 
-    if ((screen->unparse_len + 2) >= sizeof(screen->unparse_bfr) / sizeof(IChar))
-	  unparse_end(xw);
+    if ((screen->unparse_len + 2) >= screen->unparse_max)
+	unparse_end(xw);
 
     len = screen->unparse_len;
 
@@ -7657,6 +7657,18 @@ unparse_end(XtermWidget xw)
 {
     TScreen *screen = TScreenOf(xw);
 
+#if OPT_TCAP_QUERY
+    /*
+     * tcap-query works by simulating key-presses, which ordinarily would be
+     * flushed out at the end of each key.  For better efficiency, do not do
+     * the flush unless we are about to fill the buffer used to capture the
+     * response.
+     */
+    if ((screen->tc_query_code >= 0)
+	&& (screen->unparse_len + 2 < screen->unparse_max)) {
+	return;
+    }
+#endif
     if (screen->unparse_len) {
 	TRACE(("unparse_end %u:%s\n",
 	       screen->unparse_len,
@@ -9032,6 +9044,7 @@ VTInitialize(Widget wrequest,
 #endif
 
 #if OPT_CLIP_BOLD
+    init_Bres(screen.use_border_clipping);
     init_Bres(screen.use_clipping);
 #endif
 
@@ -9526,14 +9539,9 @@ VTInitialize(Widget wrequest,
 #if OPT_TOOLBAR
     wnew->VT100_TB_INFO(menu_bar) = request->VT100_TB_INFO(menu_bar);
     init_Ires(VT100_TB_INFO(menu_height));
-#elif !OPT_DOUBLE_BUFFER
-    /* Flag icon name with "***"  on window output when iconified.
-     * Put in a handler that will tell us when we get Map/Unmap events.
-     */
-    if (resource.zIconBeep)
 #endif
-	XtAddEventHandler(my_parent, StructureNotifyMask, False,
-			  HandleStructNotify, (Opaque) 0);
+    XtAddEventHandler(my_parent, StructureNotifyMask, False,
+		      HandleStructNotify, (Opaque) 0);
 #endif /* HANDLE_STRUCT_NOTIFY */
 
     screen->bellInProgress = False;
@@ -9565,6 +9573,12 @@ VTInitialize(Widget wrequest,
 #ifndef NO_ACTIVE_ICON
     screen->whichVwin = &screen->fullVwin;
 #endif /* NO_ACTIVE_ICON */
+
+    init_Ires(screen.unparse_max);
+    if ((int) screen->unparse_max < 256)
+	screen->unparse_max = 256;
+    screen->unparse_bfr = (IChar *) (void *) XtCalloc(screen->unparse_max,
+						      sizeof(IChar));
 
     if (screen->savelines < 0)
 	screen->savelines = 0;
@@ -9721,6 +9735,7 @@ VTDestroy(Widget w GCC_UNUSED)
 	}
     }
 #endif
+    TRACE_FREE_LEAK(screen->unparse_bfr);
     TRACE_FREE_LEAK(screen->save_ptr);
     TRACE_FREE_LEAK(screen->saveBuf_data);
     TRACE_FREE_LEAK(screen->saveBuf_index);
@@ -10191,7 +10206,7 @@ VTRealize(Widget w,
     pos.w = screen->fullVwin.fullwidth;
     pos.h = screen->fullVwin.fullheight;
 
-    TRACE(("... border widget %d parent %d shell %d\n",
+    TRACE(("... BorderWidth: widget %d parent %d shell %d\n",
 	   BorderWidth(xw),
 	   BorderWidth(XtParent(xw)),
 	   BorderWidth(SHELL_OF(xw))));
@@ -11087,9 +11102,11 @@ ShowCursor(void)
 	    flags &= ~(FG_COLOR | BG_COLOR);
 	} else if ((flags & (FG_COLOR | BG_COLOR)) == FG_COLOR) {
 	    TRACE(("ShowCursor - should we treat as a colored cell?\n"));
-	    if (!(xw->flags & FG_COLOR))
-		if (CheckBogusForeground(screen, "ShowCursor"))
+	    if (!(xw->flags & FG_COLOR)) {
+		if (CheckBogusForeground(screen, "ShowCursor")) {
 		    flags &= ~(FG_COLOR | BG_COLOR);
+		}
+	    }
 	}
     }
 #else /* !EXP_BOGUS_FG */
@@ -12324,6 +12341,8 @@ set_cursor_gcs(XtermWidget xw)
 
     TRACE(("set_cursor_gcs cc=%#lx, fg=%#lx, bg=%#lx\n", cc, fg, bg));
     if (win != 0 && (cc != bg)) {
+	Pixel xx = ((fg == cc) ? bg : cc);
+
 	/* set the fonts to the current one */
 	setCgsFont(xw, win, gcVTcursNormal, 0);
 	setCgsFont(xw, win, gcVTcursFilled, 0);
@@ -12332,9 +12351,9 @@ set_cursor_gcs(XtermWidget xw)
 
 	/* we have a colored cursor */
 	setCgsFore(xw, win, gcVTcursNormal, fg);
-	setCgsBack(xw, win, gcVTcursNormal, cc);
+	setCgsBack(xw, win, gcVTcursNormal, xx);
 
-	setCgsFore(xw, win, gcVTcursFilled, cc);
+	setCgsFore(xw, win, gcVTcursFilled, xx);
 	setCgsBack(xw, win, gcVTcursFilled, fg);
 
 	if (screen->always_highlight) {

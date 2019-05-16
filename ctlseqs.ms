@@ -1,6 +1,6 @@
 .\"#! troff -ms $1		-*- Nroff -*-
 .\" "Xterm Control Sequences" document
-.\" $XTermId: ctlseqs.ms,v 1.491 2019/02/13 02:13:36 tom Exp $
+.\" $XTermId: ctlseqs.ms,v 1.497 2019/05/07 09:00:12 tom Exp $
 .\"
 .\"
 .\" Copyright 1996-2018,2019 by Thomas E. Dickey
@@ -69,8 +69,8 @@
 .\"
 .ds XT XTerm
 .ds xt xterm
-.ds LF Patch #344
-.ds RF 2019/02/12
+.ds LF Patch #345
+.ds RF 2019/05/07
 .\"
 .if n .pl 9999v		\" no page breaks in nroff
 .ND
@@ -1752,6 +1752,13 @@ Two private modes are read-only (i.e., \*1\*3 and \*1\*4),
 provided only for reporting their values using this control sequence.
 They correspond to the resources \fBcursorBlink\fP and \fBcursorBlinkXOR\fP.
 .
+.IP \\*(Cs\\*#\\*p
+.br
+.IP \\*(Cs\\*(Ps\\*s\\*;\\*(Ps\\*s\\*#\\*p
+Push video attributes onto stack (XTPUSHSGR), \fI\*(xt\fP.
+This is an alias for \*(Cs\*#\*{,
+used to work around language limitations of C#.
+.
 .iP
 .IP \\*(Cs\\*(Ps\\*s\\*q
 Load LEDs (DECLL), VT100.
@@ -1781,6 +1788,12 @@ Valid values for the parameter:
   \*(Ps = \*0 \(-> DECSED and DECSEL can erase (default).
   \*(Ps = \*1 \(-> DECSED and DECSEL cannot erase.
   \*(Ps = \*2 \(-> DECSED and DECSEL can erase.
+.
+.iP
+.IP \\*(Cs\\*#\\*q
+Pop video attributes from stack (XTPOPSGR), \fI\*(xt\fP.
+This is an alias for \*(Cs\*#\*},
+used to work around language limitations of C#.
 .
 .iP
 .IP \\*(Cs\\*(Ps\\*s\\*;\\*(Ps\\*s\\*r
@@ -2237,7 +2250,9 @@ using \*1\*0 through \*1\*9 are
 denoted \fIdynamic colors\fR, since the corresponding control sequences
 were the first means for setting \fI\*(xt\fR's colors dynamically,
 i.e., after it was started.
-They are not the same as the ANSI colors.
+They are not the same as the ANSI colors
+(however, the dynamic text foreground and background colors
+are used when ANSI colors are reset using SGR \*3\*9 and \*4\*9, respectively).
 These controls may be disabled using the \fIallowColorOps\fP resource.
 At least one parameter is expected for \*(Pt.
 Each successive parameter changes the next color in the list.
@@ -2291,10 +2306,11 @@ The parameter \*(Pt is parsed as
 	\*(Pc\*s\*;\*(Pd
 .br
 The first, \*(Pc, may contain zero or more characters from the
-set \*c, \*p, \*(cs, \*0, \*1, \*2, \*3, \*4, \*5, \*6, and \*7.
+set \*c, \*p, \*q, \*(cs, \*0, \*1, \*2, \*3, \*4, \*5, \*6, and \*7.
 It is used to construct a list of selection parameters for
 clipboard,
 primary,
+secondary,
 select,
 or cut buffers 0 through 7 respectively,
 in the order given.
@@ -2948,9 +2964,9 @@ It is enabled by specifying parameter 9 to DECSET.
 On button press, \fI\*(xt\fP sends
 \*(Cs\*M\*(Cb\*(Cx\*(Cy (6 characters).
 .bP
-\*(Cb is button\-1.
+\*(Cb is \fIbutton\fP\-1, where \fIbutton\fP is 1, 2 or 3.
 .bP
-\*(Cx and \*(Cy are the x and y coordinates of the mouse when the
+\*(Cx and \*(Cy are the \fIx\fP and \fIy\fP coordinates of the mouse when the
 button was pressed.
 .Ss Normal tracking mode
 .LP
@@ -3020,8 +3036,8 @@ hang \fI\*(xt.\fP
 On button press, the same information as for normal tracking is
 generated; \fI\*(xt\fP then waits for the program to send mouse
 tracking information.
-\fIAll X events are ignored until the proper escape sequence is
-received from the pty:\fP
+\fIAll X events are ignored until the proper escape sequence is\fP
+\fIreceived from the pty:\fP
 \*(Cs\*(Ps\*s\*;\*(Ps\*s\*;\*(Ps\*s\*;\*(Ps\*s\*;\*(Ps\*s\*T.
 The parameters are \fIfunc, startx, starty, firstrow,\fP and \fIlastrow.\fP
 .bP
@@ -3565,7 +3581,7 @@ Digital Equipment Corporation
 \fILevel 2 Programming Reference Manual\fP
 .br
 Digital Equipment Corporation
-(EK-PPLV2-PM. B01, August 1994).
+(EK-PPLV2-PM B01, August 1994).
 .bP
 \fI4014 and 4014-1 Computer Display Terminal\fP
 .br

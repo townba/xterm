@@ -30,7 +30,7 @@
  * sale, use or other dealings in this Software without prior written        *
  * authorization.                                                            *
  *****************************************************************************
-  $XTermId: xterm.log.html,v 1.2004 2019/02/13 02:32:29 tom Exp $
+  $XTermId: xterm.log.html,v 1.2037 2019/05/14 04:03:02 tom Exp $
   -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 
@@ -40,7 +40,7 @@
   "HTML Tidy for Linux (vers 25 March 2009), see www.w3.org">
 
   <title>XTERM - Change Log</title>
-  <link rev="MADE" href="mailto:dickey@invisible-island.net">
+  <link rel="author" href="mailto:dickey@invisible-island.net">
   <meta http-equiv="Content-Type" content=
   "text/html; charset=us-ascii">
   <meta name="keywords" content="xterm, change log">
@@ -72,6 +72,8 @@
   CHANGELOG</a>).</p>
 
   <ul>
+    <li><a href="#xterm_345">Patch #345 - 2019/05/14</a></li>
+
     <li><a href="#xterm_344">Patch #344 - 2019/02/12</a></li>
 
     <li><a href="#xterm_343">Patch #343 - 2019/01/13</a></li>
@@ -971,6 +973,123 @@
     <li><a href="#xterm_02">Patch #2 - 1996/1/7</a></li>
 
     <li><a href="#xterm_01">Patch #1 - 1996/1/6</a></li>
+  </ul>
+
+  <h1><a name="xterm_345" id="xterm_345">Patch #345 -
+  2019/05/14</a></h1>
+
+  <ul>
+    <li>updated FreeBSD test-package from recent /usr/ports
+    scripts.</li>
+
+    <li>workaround in <code>run-tic.sh</code> for HPUX, whose
+    <code>mktemp</code> prints the name of a temporary directory
+    without creating it.</li>
+
+    <li>add left/right margin capabilities to terminfo, since the
+    default terminal emulation is VT420 (suggested by Thomas
+    Wolff).</li>
+
+    <li>modify treatment of <code>reverseVideo</code> for dynamic
+    colors to make text foreground/background consistent with the
+    cursor color (prompted by discussion with Ben Wong, lsix
+    #20).</li>
+
+    <li>modify button-handling to make SGR button-release distinct
+    from button-press for button-codes starting with 8 (patch by
+    Mikulas Patocka).</li>
+
+    <li>add aliases for the sgr push/pop controls to work around
+    language limitations of C# (request by Dan Thompson).</li>
+
+    <li>correct a typo in <code>setDirectFG</code>, which could
+    cause setting of indexed-color after a direct-color to be
+    ignored.</li>
+
+    <li>add resource <code>useBorderClipping</code> as an
+    alternative to <code>useClipping</code> (request by Robert
+    Ross).</li>
+
+    <li>improve logic for displaying xterm's built-in line-drawing
+    characters vs missing glyphs, e.g., for U+2409 to U+240D (patch
+    by Robert Ross).</li>
+
+    <li>add <code>vttests/sgrPushPop2.pl</code> to illustrate how
+    selective pushes work, as well as to demonstrate push/pop of
+    the various color types supported by xterm.</li>
+
+    <li>fix a special case in <code>XTPOPSGR</code> where
+    direct-colors were not checked as a dependency of
+    indexed-colors, contrary to documentation.</li>
+
+    <li>reduce buffer-flushes for <code>OSC&nbsp;4</code> and
+    <code>OSC&nbsp;5</code> color-queries, as well as in the
+    queries for dynamic colors.<br>
+    <strong>Note:</strong> this change makes the reply for
+    <code>OSC&nbsp;5</code> use the &ldquo;5&rdquo; in the
+    response; formerly it was mapped to &rdquo;4&rdquo; after
+    adding the maximum number of colors.</li>
+
+    <li>modify <code>vttests/query-color.pl</code> to demonstrate
+    multiple queries in one request.</li>
+
+    <li>update tables of combining and unknown-width characters in
+    wcwidth.c based on Unicode 12.0.0.</li>
+
+    <li>modify response for <code>OSC&nbsp;5</code> to be
+    consistent with documentation.</li>
+
+    <li>add <code>vttests/query-dynamic.pl</code></li>
+
+    <li>modify <code>vttests/query-color.pl</code> to accept bold,
+    underline, etc., keywords to decide whether to use
+    <code>OSC&nbsp;5</code> rather than
+    <code>OSC&nbsp;4</code>.</li>
+
+    <li>modify cursor coloring to avoid a case where the cursor
+    matched the foreground color while the text was displayed in
+    reverse-video (report by Nuno Silva).</li>
+
+    <li>fix an inconsistency in X10 mouse responses from <a href=
+    "#xterm_342">patch #342</a> changes; the legacy protocol
+    supports only buttons 1-3.</li>
+
+    <li>reduce the number of buffer-flushes for tcap-query
+    batches.</li>
+
+    <li>modify <code>tcapquery.pl</code> to demonstrate batch
+    queries with <code>-q</code> option.</li>
+
+    <li>increase response-buffer size, and make it configurable as
+    <code>limitResponse</code> (prompted by discussion with Stephen
+    P Wall).</li>
+
+    <li>modified configure script:
+
+      <ul>
+        <li>check/workaround for non-POSIX manipulation of
+        predefined symbols</li>
+
+        <li>check for updated X Toolkit, which uses
+        <code>const</code>.</li>
+      </ul>
+    </li>
+
+    <li>update config.guess, config.sub</li>
+
+    <li>provide for secondary-selection, overlooked in <a href=
+    "#xterm_338">patch #338</a> (report by Emile LeBlanc).</li>
+
+    <li>documentation errata (patch by Larry Hynes).</li>
+
+    <li>improve pointer-checks in <code>Tekproc.c</code></li>
+
+    <li>revise solution for Debian #919475, to allow for
+    struct-notify events occurring as a side-effect of toggling
+    to/from full-screen mode.</li>
+
+    <li>window's border-size was incorrectly added to position when
+    maximizing window (report by Gary Langshaw).</li>
   </ul>
 
   <h1><a name="xterm_344" id="xterm_344">Patch #344 -
@@ -5549,8 +5668,8 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     screen (reports by Rajeev V. Pillai, Debian #550368).</li>
 
     <li>add <code>-q</code> option to
-    <code>vttest/256colors2.pl</code> and
-    <code>vttest/88colors2.pl</code> to demonstrate bulk
+    <code>vttests/256colors2.pl</code> and
+    <code>vttests/88colors2.pl</code> to demonstrate bulk
     initialization of color palette.</li>
 
     <li>improve the workaround from patch #188 by enabling

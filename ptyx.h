@@ -1,4 +1,4 @@
-/* $XTermId: ptyx.h,v 1.951 2019/02/11 10:22:07 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.956 2019/05/03 23:39:31 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -1153,6 +1153,14 @@ typedef enum {
 #endif
 } DECSET_codes;
 
+/* internal codes for selection atoms */
+typedef enum {
+    PRIMARY_CODE = 0
+    ,CLIPBOARD_CODE
+    ,SECONDARY_CODE
+    ,MAX_SELECTION_CODES
+} SelectionCodes;
+
 /* indices for mapping multiple clicks to selection types */
 typedef enum {
     Select_CHAR=0
@@ -1257,10 +1265,6 @@ typedef enum {
     , psBG_COLOR = 11
 #endif
 #if OPT_WIDE_ATTRS
-#if OPT_DIRECT_COLOR
-    , psATR_DIRECT_FG = 12
-    , psATR_DIRECT_BG = 13
-#endif
     , psATR_DBL_UNDER = 21
 #endif
     , MAX_PUSH_SGR
@@ -1699,7 +1703,7 @@ typedef unsigned CellColor;
 #define GetCellColorBG(data)	((data).bg)
 #define hasDirectFG(flags)	((flags) & ATR_DIRECT_FG)
 #define hasDirectBG(flags)	((flags) & ATR_DIRECT_BG)
-#define setDirectFG(flags,test)	if (test) UIntSet(flags, ATR_DIRECT_FG); else UIntClr(flags, ATR_DIRECT_BG)
+#define setDirectFG(flags,test)	if (test) UIntSet(flags, ATR_DIRECT_FG); else UIntClr(flags, ATR_DIRECT_FG)
 #define setDirectBG(flags,test)	if (test) UIntSet(flags, ATR_DIRECT_BG); else UIntClr(flags, ATR_DIRECT_BG)
 #elif OPT_ISO_COLORS
 #define clrDirectFG(flags)	/* nothing */
@@ -2185,8 +2189,9 @@ typedef struct {
 					   (position report, etc.)	*/
 	int		nextEventDelay;	/* msecs to delay for x-events  */
 /* These parameters apply to VT100 window */
-	IChar		unparse_bfr[256];
+	IChar		*unparse_bfr;
 	unsigned	unparse_len;
+	unsigned	unparse_max;	/* limitResponse resource	*/
 
 #if OPT_TCAP_QUERY
 	int		tc_query_code;
@@ -2645,8 +2650,10 @@ typedef struct {
 	Time		lastButtonUpTime;
 	unsigned	lastButton;
 
-#define MAX_SELECTIONS	12
-	SelectedCells	selected_cells[MAX_SELECTIONS]; /* primary/clipboard */
+#define MAX_CUT_BUFFER  8		/* CUT_BUFFER0 to CUT_BUFFER7 */
+#define MAX_SELECTIONS	(MAX_SELECTION_CODES + MAX_CUT_BUFFER)
+	SelectedCells	selected_cells[MAX_SELECTIONS];
+
 	CELL		rawPos;		/* raw position for selection start */
 	CELL		startRaw;	/* area before selectUnit processing */
 	CELL		endRaw;		/* " " */
@@ -2708,6 +2715,7 @@ typedef struct {
 	SubResourceRec	cacheVTFonts;
 #endif
 #if OPT_CLIP_BOLD
+	Boolean		use_border_clipping;
 	Boolean		use_clipping;
 #endif
 	void *		main_cgs_cache;

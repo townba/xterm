@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.855 2019/01/12 00:52:14 tom Exp $ */
+/* $XTermId: misc.c,v 1.870 2019/05/10 08:44:56 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -389,26 +389,6 @@ xtermShowPointer(XtermWidget xw, Bool enable)
     }
 }
 
-#if OPT_TRACE
-static void
-TraceExposeEvent(XEvent *arg)
-{
-    XExposeEvent *event = (XExposeEvent *) arg;
-
-    TRACE(("pending Expose %ld %d: %d,%d %dx%d %#lx\n",
-	   event->serial,
-	   event->count,
-	   event->y,
-	   event->x,
-	   event->height,
-	   event->width,
-	   event->window));
-}
-
-#else
-#define TraceExposeEvent(event)	/* nothing */
-#endif
-
 /* true if p contains q */
 #define ExposeContains(p,q) \
 	    ((p)->y <= (q)->y \
@@ -422,8 +402,6 @@ mergeExposeEvents(XEvent *target)
     XEvent next_event;
     XExposeEvent *p;
 
-    TRACE(("pending Expose...?\n"));
-    TraceExposeEvent(target);
     XtAppNextEvent(app_con, target);
     p = (XExposeEvent *) target;
 
@@ -431,11 +409,10 @@ mergeExposeEvents(XEvent *target)
 	   && XtAppPeekEvent(app_con, &next_event)
 	   && next_event.type == Expose) {
 	Boolean merge_this = False;
-	XExposeEvent *q;
+	XExposeEvent *q = (XExposeEvent *) (&next_event);
 
-	TraceExposeEvent(&next_event);
-	q = (XExposeEvent *) (&next_event);
 	XtAppNextEvent(app_con, &next_event);
+	TRACE_EVENT("pending", &next_event, (String *) 0, 0);
 
 	/*
 	 * If either window is contained within the other, merge the events.
@@ -463,25 +440,6 @@ mergeExposeEvents(XEvent *target)
     return XtAppPending(app_con);
 }
 
-#if OPT_TRACE
-static void
-TraceConfigureEvent(XEvent *arg)
-{
-    XConfigureEvent *event = (XConfigureEvent *) arg;
-
-    TRACE(("pending Configure %ld %d,%d %dx%d %#lx\n",
-	   event->serial,
-	   event->y,
-	   event->x,
-	   event->height,
-	   event->width,
-	   event->window));
-}
-
-#else
-#define TraceConfigureEvent(event)	/* nothing */
-#endif
-
 /*
  * On entry, we have peeked at the event queue and see a configure-notify
  * event.  Remove that from the queue so we can look further.
@@ -502,18 +460,14 @@ mergeConfigureEvents(XEvent *target)
     XtAppNextEvent(app_con, target);
     p = (XConfigureEvent *) target;
 
-    TRACE(("pending Configure...?%s\n", XtAppPending(app_con) ? "yes" : "no"));
-    TraceConfigureEvent(target);
-
     if (XtAppPending(app_con)
 	&& XtAppPeekEvent(app_con, &next_event)
 	&& next_event.type == ConfigureNotify) {
 	Boolean merge_this = False;
-	XConfigureEvent *q;
+	XConfigureEvent *q = (XConfigureEvent *) (&next_event);
 
-	TraceConfigureEvent(&next_event);
 	XtAppNextEvent(app_con, &next_event);
-	q = (XConfigureEvent *) (&next_event);
+	TRACE_EVENT("pending", &next_event, (String *) 0, 0);
 
 	if (p->window == q->window) {
 	    TRACE(("pending Configure...merged\n"));
@@ -547,14 +501,12 @@ xtermAppPending(void)
 
     while (result && XtAppPeekEvent(app_con, &this_event)) {
 	found = True;
+	TRACE_EVENT("pending", &this_event, (String *) 0, 0);
 	if (this_event.type == Expose) {
 	    result = mergeExposeEvents(&this_event);
-	    TRACE(("got merged expose events\n"));
 	} else if (this_event.type == ConfigureNotify) {
 	    result = mergeConfigureEvents(&this_event);
-	    TRACE(("got merged configure notify events\n"));
 	} else {
-	    TRACE(("pending %s\n", visibleEventType(this_event.type)));
 	    break;
 	}
     }
@@ -1309,7 +1261,7 @@ HandleBellPropertyChange(Widget w GCC_UNUSED,
 }
 
 void
-xtermWarning(const char *fmt,...)
+xtermWarning(const char *fmt, ...)
 {
     int save_err = errno;
     va_list ap;
@@ -1333,7 +1285,7 @@ xtermWarning(const char *fmt,...)
 }
 
 void
-xtermPerror(const char *fmt,...)
+xtermPerror(const char *fmt, ...)
 {
     int save_err = errno;
     char *msg = strerror(errno);
@@ -1688,8 +1640,8 @@ RequestMaximize(XtermWidget xw, int maximize)
 	    || screen->restore_width != root_width
 	    || screen->restore_height != root_height) {
 	    screen->restore_data = True;
-	    screen->restore_x = wm_attrs.x + wm_attrs.border_width;
-	    screen->restore_y = wm_attrs.y + wm_attrs.border_width;
+	    screen->restore_x = wm_attrs.x;
+	    screen->restore_y = wm_attrs.y;
 	    screen->restore_width = (unsigned) vshell_attrs.width;
 	    screen->restore_height = (unsigned) vshell_attrs.height;
 	    TRACE(("RequestMaximize: save window position %d,%d size %d,%d\n",
@@ -1700,10 +1652,8 @@ RequestMaximize(XtermWidget xw, int maximize)
 	}
 
 	/* subtract wm decoration dimensions */
-	root_width -= (unsigned) ((wm_attrs.width - vshell_attrs.width)
-				  + (wm_attrs.border_width * 2));
-	root_height -= (unsigned) ((wm_attrs.height - vshell_attrs.height)
-				   + (wm_attrs.border_width * 2));
+	root_width -= (unsigned) (wm_attrs.width - vshell_attrs.width);
+	root_height -= (unsigned) (wm_attrs.height - vshell_attrs.height);
 	success = True;
     } else if (screen->restore_data) {
 	success = True;
@@ -1720,9 +1670,14 @@ RequestMaximize(XtermWidget xw, int maximize)
 	    break;
 	case 1:
 	    FullScreen(xw, 0);	/* overrides any EWMH hint */
+	    TRACE(("XMoveResizeWindow(Maximize): position %d,%d size %d,%d\n",
+		   0,
+		   0,
+		   root_width,
+		   root_height));
 	    XMoveResizeWindow(screen->display, VShellWindow(xw),
-			      0 + wm_attrs.border_width,	/* x */
-			      0 + wm_attrs.border_width,	/* y */
+			      0,	/* x */
+			      0,	/* y */
 			      root_width,
 			      root_height);
 	    break;
@@ -1732,7 +1687,7 @@ RequestMaximize(XtermWidget xw, int maximize)
 	    if (screen->restore_data) {
 		screen->restore_data = False;
 
-		TRACE(("HandleRestoreSize: position %d,%d size %d,%d\n",
+		TRACE(("XMoveResizeWindow(Restore): position %d,%d size %d,%d\n",
 		       screen->restore_x,
 		       screen->restore_y,
 		       screen->restore_width,
@@ -2326,9 +2281,11 @@ rgb masks (%04lx/%04lx/%04lx)\n"
 }
 
 #if OPT_ISO_COLORS
-static void
-ReportAnsiColorRequest(XtermWidget xw, int colornum, int final)
+static Bool
+ReportAnsiColorRequest(XtermWidget xw, int opcode, int colornum, int final)
 {
+    Bool result = False;
+
     if (AllowColorOps(xw, ecGetAnsiColor)) {
 	XColor color;
 	Colormap cmap = xw->core.colormap;
@@ -2337,16 +2294,18 @@ ReportAnsiColorRequest(XtermWidget xw, int colornum, int final)
 	TRACE(("ReportAnsiColorRequest %d\n", colornum));
 	color.pixel = GET_COLOR_RES(xw, TScreenOf(xw)->Acolors[colornum]);
 	XQueryColor(TScreenOf(xw)->display, cmap, &color);
-	sprintf(buffer, "4;%d;rgb:%04x/%04x/%04x",
-		colornum,
+	sprintf(buffer, "%d;%d;rgb:%04x/%04x/%04x",
+		opcode,
+		(opcode == 5) ? (colornum - NUM_ANSI_COLORS) : colornum,
 		color.red,
 		color.green,
 		color.blue);
 	unparseputc1(xw, ANSI_OSC);
 	unparseputs(xw, buffer);
 	unparseputc1(xw, final);
-	unparse_end(xw);
+	result = True;
     }
+    return result;
 }
 
 static void
@@ -2782,6 +2741,7 @@ ChangeOneAnsiColor(XtermWidget xw, int color, const char *name)
  */
 static Bool
 ChangeAnsiColorRequest(XtermWidget xw,
+		       int opcode,
 		       char *buf,
 		       int first,
 		       int final)
@@ -2789,6 +2749,7 @@ ChangeAnsiColorRequest(XtermWidget xw,
     int repaint = False;
     int code;
     int last = (MAXCOLORS - first);
+    int queried = 0;
 
     TRACE(("ChangeAnsiColorRequest string='%s'\n", buf));
 
@@ -2809,7 +2770,8 @@ ChangeAnsiColorRequest(XtermWidget xw,
 	    buf++;
 	}
 	if (!strcmp(name, "?")) {
-	    ReportAnsiColorRequest(xw, color + first, final);
+	    if (ReportAnsiColorRequest(xw, opcode, color + first, final))
+		++queried;
 	} else {
 	    code = ChangeOneAnsiColor(xw, color + first, name);
 	    if (code < 0) {
@@ -2823,6 +2785,8 @@ ChangeAnsiColorRequest(XtermWidget xw,
 	     */
 	}
     }
+    if (queried)
+	unparse_end(xw);
 
     return (repaint);
 }
@@ -3089,6 +3053,7 @@ ManipulateSelectionData(XtermWidget xw, TScreen *screen, char *buf, int final)
     } table[] = {
 	PDATA('s', SELECT),
 	    PDATA('p', PRIMARY),
+	    PDATA('q', SECONDARY),
 	    PDATA('c', CLIPBOARD),
 	    PDATA('0', CUT_BUFFER0),
 	    PDATA('1', CUT_BUFFER1),
@@ -3292,14 +3257,16 @@ GetOldColors(XtermWidget xw)
 }
 
 static int
-oppositeColor(int n)
+oppositeColor(XtermWidget xw, int n)
 {
+    Boolean reversed = (xw->misc.re_verse);
+
     switch (n) {
     case TEXT_FG:
-	n = TEXT_BG;
+	n = reversed ? TEXT_FG : TEXT_BG;
 	break;
     case TEXT_BG:
-	n = TEXT_FG;
+	n = reversed ? TEXT_BG : TEXT_FG;
 	break;
     case MOUSE_FG:
 	n = MOUSE_BG;
@@ -3309,10 +3276,10 @@ oppositeColor(int n)
 	break;
 #if OPT_TEK4014
     case TEK_FG:
-	n = TEK_BG;
+	n = reversed ? TEK_FG : TEK_BG;
 	break;
     case TEK_BG:
-	n = TEK_FG;
+	n = reversed ? TEK_BG : TEK_FG;
 	break;
 #endif
 #if OPT_HIGHLIGHT_COLOR
@@ -3329,9 +3296,11 @@ oppositeColor(int n)
     return n;
 }
 
-static void
+static Bool
 ReportColorRequest(XtermWidget xw, int ndx, int final)
 {
+    Bool result = False;
+
     if (AllowColorOps(xw, ecGetColor)) {
 	XColor color;
 	Colormap cmap = xw->core.colormap;
@@ -3342,7 +3311,7 @@ ReportColorRequest(XtermWidget xw, int ndx, int final)
 	 * reverse-video is set.  Report this as the original color index, but
 	 * reporting the opposite color which would be used.
 	 */
-	int i = (xw->misc.re_verse) ? oppositeColor(ndx) : ndx;
+	int i = (xw->misc.re_verse) ? oppositeColor(xw, ndx) : ndx;
 
 	GetOldColors(xw);
 	color.pixel = xw->work.oldColors->colors[ndx];
@@ -3356,8 +3325,9 @@ ReportColorRequest(XtermWidget xw, int ndx, int final)
 	unparseputc1(xw, ANSI_OSC);
 	unparseputs(xw, buffer);
 	unparseputc1(xw, final);
-	unparse_end(xw);
+	result = True;
     }
+    return result;
 }
 
 static Bool
@@ -3433,6 +3403,7 @@ ChangeColorsRequest(XtermWidget xw,
 
     if (GetOldColors(xw)) {
 	int i;
+	int queried = 0;
 
 	newColors.which = 0;
 	for (i = 0; i < NCOLORS; i++) {
@@ -3441,7 +3412,7 @@ ChangeColorsRequest(XtermWidget xw,
 	for (i = start; i < OSC_NCOLORS; i++) {
 	    int ndx = OscToColorIndex((OscTextColors) i);
 	    if (xw->misc.re_verse)
-		ndx = oppositeColor(ndx);
+		ndx = oppositeColor(xw, ndx);
 
 	    if (IsEmpty(names)) {
 		newColors.names[ndx] = NULL;
@@ -3454,7 +3425,8 @@ ChangeColorsRequest(XtermWidget xw,
 		}
 		if (thisName != 0) {
 		    if (!strcmp(thisName, "?")) {
-			ReportColorRequest(xw, ndx, final);
+			if (ReportColorRequest(xw, ndx, final))
+			    ++queried;
 		    } else if (!xw->work.oldColors->names[ndx]
 			       || strcmp(thisName, xw->work.oldColors->names[ndx])) {
 			AllocateTermColor(xw, &newColors, ndx, thisName, False);
@@ -3466,6 +3438,8 @@ ChangeColorsRequest(XtermWidget xw,
 	if (newColors.which != 0) {
 	    ChangeColors(xw, &newColors);
 	    UpdateOldColors(xw, &newColors);
+	} else if (queried) {
+	    unparse_end(xw);
 	}
 	result = True;
     }
@@ -3490,7 +3464,7 @@ ResetColorsRequest(XtermWidget xw,
 	int ndx = OscToColorIndex((OscTextColors) (code - OSC_RESET));
 
 	if (xw->misc.re_verse)
-	    ndx = oppositeColor(ndx);
+	    ndx = oppositeColor(xw, ndx);
 
 	thisName = xw->screen.Tcolors[ndx].resource;
 
@@ -3868,7 +3842,7 @@ do_osc(XtermWidget xw, Char *oscbuf, size_t len, int final)
 	ansi_colors = NUM_ANSI_COLORS;
 	/* FALLTHRU */
     case 4:
-	if (ChangeAnsiColorRequest(xw, buf, ansi_colors, final))
+	if (ChangeAnsiColorRequest(xw, mode, buf, ansi_colors, final))
 	    xw->work.palette_changed = True;
 	break;
     case 6:
@@ -4586,6 +4560,7 @@ do_dcs(XtermWidget xw, Char *dcsbuf, size_t dcslen)
 			    unparseputs(xw, resource.term_name);
 			} else {
 			    XKeyEvent event;
+			    memset(&event, 0, sizeof(event));
 			    event.state = state;
 			    Input(xw, &event, False);
 			}
@@ -5090,7 +5065,7 @@ udk_lookup(XtermWidget xw, int keycode, int *len)
 
 #if OPT_REPORT_ICONS
 void
-report_icons(const char *fmt,...)
+report_icons(const char *fmt, ...)
 {
     if (resource.reportIcons) {
 	va_list ap;
@@ -6495,7 +6470,7 @@ xtermOpenApplication(XtAppContext * app_context_return,
 		     XrmOptionDescRec * options,
 		     Cardinal num_options,
 		     int *argc_in_out,
-		     String *argv_in_out,
+		     char **argv_in_out,
 		     String *fallback_resources,
 		     WidgetClass widget_class,
 		     ArgList args,
@@ -6730,10 +6705,7 @@ traceIStack(unsigned flags)
     DATA(ATR_ITALIC);
     DATA(ATR_STRIKEOUT);
     DATA(ATR_DBL_UNDER);
-#if OPT_DIRECT_COLOR
-    DATA(ATR_DIRECT_FG);	/* FIXME - integrate with FG_COLOR */
-    DATA(ATR_DIRECT_BG);	/* FIXME - integrate with BG_COLOR */
-#endif
+    /* direct-colors are a special case of ISO-colors (see above) */
 #endif
 #undef DATA
     return result;
@@ -6839,6 +6811,15 @@ xtermPopSGR(XtermWidget xw)
 		    TRACE(("...pop " #name " = %s\n", BtoS(xw->flags & name))); \
 		} \
 	    }
+#define POP_FLAG2(name,part) \
+	    if (xBIT(ps##name - 1) & mask) { \
+	    	if ((xw->flags & part) ^ (s->stack[s->used].flags & part)) { \
+		    changed = True; \
+		    UIntClr(xw->flags, part); \
+		    UIntSet(xw->flags, (s->stack[s->used].flags & part)); \
+		    TRACE(("...pop " #part " = %s\n", BtoS(xw->flags & part))); \
+		} \
+	    }
 #define POP_DATA(name,value) \
 	    if (xBIT(ps##name - 1) & mask) { \
 	        Bool always = False; \
@@ -6872,8 +6853,8 @@ xtermPopSGR(XtermWidget xw)
 	    POP_DATA(FG_COLOR, sgr_foreground);
 	    POP_DATA(BG_COLOR, sgr_background);
 #if OPT_DIRECT_COLOR
-	    POP_FLAG(ATR_DIRECT_FG);
-	    POP_FLAG(ATR_DIRECT_BG);
+	    POP_FLAG2(FG_COLOR, ATR_DIRECT_FG);
+	    POP_FLAG2(BG_COLOR, ATR_DIRECT_BG);
 #endif
 	    if (changed) {
 		setExtendedColors(xw);

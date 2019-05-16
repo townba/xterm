@@ -21,7 +21,7 @@
                              Thomas Dickey
                       XFree86 Project (1996-2006)
                     invisible-island.net (2006-2019)
-               updated for XTerm Patch #344 (2019/02/10)
+               updated for XTerm Patch #345 (2019/05/07)
 
 
 
@@ -32,7 +32,7 @@ c    The literal character c.
 
 C    A single (required) character.
 
-Ps   A single (usually optional) numeric parameter, composed of one of
+Ps   A single (usually optional) numeric parameter, composed of one or
      more digits.
 
 Pm   A multiple numeric parameter composed of any number of single
@@ -1148,6 +1148,11 @@ CSI ? Ps $ p
           vided only for reporting their values using this control
           sequence.  They correspond to the resources cursorBlink and
           cursorBlinkXOR.
+CSI # p
+CSI Ps ; Ps # p
+          Push video attributes onto stack (XTPUSHSGR), xterm.  This is
+          an alias for CSI # { , used to work around language limita-
+          tions of C#.
 
 CSI Ps q  Load LEDs (DECLL), VT100.
             Ps = 0  -> Clear all LEDS (default).
@@ -1174,6 +1179,10 @@ CSI Ps " q
             Ps = 0  -> DECSED and DECSEL can erase (default).
             Ps = 1  -> DECSED and DECSEL cannot erase.
             Ps = 2  -> DECSED and DECSEL can erase.
+
+CSI # q   Pop video attributes from stack (XTPOPSGR), xterm.  This is an
+          alias for CSI # } , used to work around language limitations
+          of C#.
 
 CSI Ps ; Ps r
           Set Scrolling Region [top;bottom] (default = full size of win-
@@ -1546,12 +1555,14 @@ OSC Ps ; Pt ST
           through 1 9  are denoted dynamic colors, since the correspond-
           ing control sequences were the first means for setting xterm's
           colors dynamically, i.e., after it was started.  They are not
-          the same as the ANSI colors.  These controls may be disabled
-          using the allowColorOps resource.  At least one parameter is
-          expected for Pt.  Each successive parameter changes the next
-          color in the list.  The value of Ps tells the starting point
-          in the list.  The colors are specified by name or RGB specifi-
-          cation as per XParseColor.
+          the same as the ANSI colors (however, the dynamic text fore-
+          ground and background colors are used when ANSI colors are
+          reset using SGR 3 9  and 4 9 , respectively).  These controls
+          may be disabled using the allowColorOps resource.  At least
+          one parameter is expected for Pt.  Each successive parameter
+          changes the next color in the list.  The value of Ps tells the
+          starting point in the list.  The colors are specified by name
+          or RGB specification as per XParseColor.
 
           If a "?" is given rather than a name or RGB specification,
           xterm replies with a control sequence of the same form which
@@ -1598,11 +1609,11 @@ OSC Ps ; Pt ST
           Pt is parsed as
                Pc ; Pd
           The first, Pc, may contain zero or more characters from the
-          set c , p , s , 0 , 1 , 2 , 3 , 4 , 5 , 6 , and 7 .  It is
+          set c , p , q , s , 0 , 1 , 2 , 3 , 4 , 5 , 6 , and 7 .  It is
           used to construct a list of selection parameters for clip-
-          board, primary, select, or cut buffers 0 through 7 respec-
-          tively, in the order given.  If the parameter is empty, xterm
-          uses s 0 , to specify the configurable primary/clipboard
+          board, primary, secondary, select, or cut buffers 0 through 7
+          respectively, in the order given.  If the parameter is empty,
+          xterm uses s 0 , to specify the configurable primary/clipboard
           selection and cut buffer 0.
 
           The second parameter, Pd, gives the selection data.  Normally
@@ -2141,7 +2152,7 @@ encoding the location and the mouse button pressed.  It is enabled by
 specifying parameter 9 to DECSET.  On button press, xterm sends CSI M
 CbCxCy (6 characters).
 
-o   Cb is button-1.
+o   Cb is button-1, where button is 1, 2 or 3.
 
 o   Cx and Cy are the x and y coordinates of the mouse when the button
     was pressed.
@@ -2635,7 +2646,7 @@ o   VT520/VT525 Video Terminal
 
 o   Digital ANSI-Compliant Printing Protocol
     Level 2 Programming Reference Manual
-    Digital Equipment Corporation (EK-PPLV2-PM. B01, August 1994).
+    Digital Equipment Corporation (EK-PPLV2-PM B01, August 1994).
 
 o   4014 and 4014-1 Computer Display Terminal
     User's Manual.

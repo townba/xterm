@@ -1,4 +1,4 @@
-/* $XTermId: xterm.h,v 1.818 2019/01/07 22:34:58 tom Exp $ */
+/* $XTermId: xterm.h,v 1.821 2019/05/02 23:55:57 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -488,6 +488,7 @@ extern char **environ;
 #define XtNkeyboardDialect	"keyboardDialect"
 #define XtNlimitFontsets	"limitFontsets"
 #define XtNlimitResize		"limitResize"
+#define XtNlimitResponse	"limitResponse"
 #define XtNlocale		"locale"
 #define XtNlocaleFilter		"localeFilter"
 #define XtNlogFile		"logFile"
@@ -563,6 +564,7 @@ extern char **environ;
 #define XtNtoolBar		"toolBar"
 #define XtNtrimSelection	"trimSelection"
 #define XtNunderLine		"underLine"
+#define XtNuseBorderClipping	"useBorderClipping"
 #define XtNuseClipping		"useClipping"
 #define XtNutf8			"utf8"
 #define XtNutf8Fonts		"utf8Fonts"
@@ -681,6 +683,7 @@ extern char **environ;
 #define XtCKeyboardDialect	"KeyboardDialect"
 #define XtCLimitFontsets	"LimitFontsets"
 #define XtCLimitResize		"LimitResize"
+#define XtCLimitResponse	"LimitResponse"
 #define XtCLocale		"Locale"
 #define XtCLocaleFilter		"LocaleFilter"
 #define XtCLogInhibit		"LogInhibit"
@@ -750,6 +753,7 @@ extern char **environ;
 #define XtCToolBar		"ToolBar"
 #define XtCTrimSelection	"TrimSelection"
 #define XtCUnderLine		"UnderLine"
+#define XtCUseBorderClipping	"UseBorderClipping"
 #define XtCUseClipping		"UseClipping"
 #define XtCUtf8			"Utf8"
 #define XtCUtf8Fonts		"Utf8Fonts"
@@ -1065,7 +1069,7 @@ extern Boolean xtermGetWinProp(Display * /* dpy */, Window /* win */, Atom /* pr
 extern Cursor make_colored_cursor (unsigned /* cursorindex */, unsigned long /* fg */, unsigned long /* bg */);
 extern OptionHelp * sortedOpts(OptionHelp *, XrmOptionDescRec *, Cardinal);
 extern String xtermEnvLocale (void);
-extern Widget xtermOpenApplication (XtAppContext * /* app_context_return */, String /* application_class */, XrmOptionDescRec */* options */, Cardinal /* num_options */, int * /* argc_in_out */, String */* argv_in_out */, String * /* fallback_resources */, WidgetClass /* widget_class */, ArgList /* args */, Cardinal /* num_args */);
+extern Widget xtermOpenApplication (XtAppContext * /* app_context_return */, String /* application_class */, XrmOptionDescRec */* options */, Cardinal /* num_options */, int * /* argc_in_out */, char **/* argv_in_out */, String * /* fallback_resources */, WidgetClass /* widget_class */, ArgList /* args */, Cardinal /* num_args */);
 extern Window WMFrameWindow (XtermWidget /* termw */);
 extern XtInputMask xtermAppPending (void);
 extern XrmOptionDescRec * sortedOptDescs (XrmOptionDescRec *, Cardinal);
