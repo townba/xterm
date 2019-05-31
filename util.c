@@ -1,4 +1,4 @@
-/* $XTermId: util.c,v 1.786 2019/05/03 00:29:56 tom Exp $ */
+/* $XTermId: util.c,v 1.788 2019/05/27 18:10:06 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -3344,8 +3344,8 @@ xtermSetClipRectangles(Display *dpy,
 					  &clip, 1); \
 	    } else if (screen->use_border_clipping) { \
 		XRectangle clip; \
-		clip.x = 0; \
-		clip.y = 0; \
+		clip.x = (short) OriginX(screen); \
+		clip.y = (short) OriginY(screen); \
 		clip.height = (unsigned short) Height(screen); \
 		clip.width = (unsigned short) Width(screen); \
 		XftDrawSetClipRectangles (screen->renderDraw, \

@@ -21,7 +21,7 @@
                              Thomas Dickey
                       XFree86 Project (1996-2006)
                     invisible-island.net (2006-2019)
-               updated for XTerm Patch #345 (2019/05/07)
+               updated for XTerm Patch #346 (2019/05/26)
 
 
 
@@ -240,9 +240,15 @@ Controls beginning with ESC
 This excludes controls where ESC  is part of a 7-bit equivalent to 8-bit
 C1 controls, ordered by the final character(s).
 
-ESC SP F  7-bit controls (S7C1T), VT220.
+ESC SP F  7-bit controls (S7C1T), VT220.  This tells the terminal to
+          send C1 control characters as 7-bit sequences, e.g., its
+          responses to queries.  DEC VT200 and up always accept 8-bit
+          control sequences except when configured for VT100 mode.
 
-ESC SP G  8-bit controls (S8C1T), VT220.
+ESC SP G  8-bit controls (S8C1T), VT220.  This tells the terminal to
+          send C1 control characters as 8-bit sequences, e.g., its
+          responses to queries.  DEC VT200 and up always accept 8-bit
+          control sequences except when configured for VT100 mode.
 
 ESC SP L  Set ANSI conformance level 1 (dpANS X3.134.1).
 
@@ -1117,15 +1123,23 @@ CSI ! p   Soft terminal reset (DECSTR), VT220 and up.
 CSI Ps ; Ps " p
           Set conformance level (DECSCL), VT220 and up.
 
-          Valid values for the first parameter:
-            Ps = 6 1  -> VT100.
-            Ps = 6 2  -> VT200.
-            Ps = 6 3  -> VT300.
+          The first parameter selects the conformance level.  Valid val-
+          ues are:
+            Ps = 6 1  -> level 1, e.g., VT100.
+            Ps = 6 2  -> level 2, e.g., VT200.
+            Ps = 6 3  -> level 3, e.g., VT300.
+            Ps = 6 4  -> level 4, e.g., VT400.
+            Ps = 6 5  -> level 5, e.g., VT500.
 
-          Valid values for the second parameter:
+          The second parameter selects the C1 control transmission mode.
+          This is an optional parameter, ignored in conformance level 1.
+          Valid values are:
             Ps = 0  -> 8-bit controls.
-            Ps = 1  -> 7-bit controls (always set for VT100).
+            Ps = 1  -> 7-bit controls (DEC factory default).
             Ps = 2  -> 8-bit controls.
+
+          The 7-bit and 8-bit control modes can also be set by S7C1T and
+          S8C1T, but DECSCL is preferred.
 
 CSI Ps $ p
           Request ANSI mode (DECRQM).  For VT300 and up, reply DECRPM is
@@ -1249,6 +1263,9 @@ CSI Ps ; Ps ; Ps t
           If the xterm window is non-iconified, it returns CSI 1 t .
           If the xterm window is iconified, it returns CSI 2 t .
             Ps = 1 3  -> Report xterm window position.
+          Note: X Toolkit positions can be negative, but the reported
+          values are unsigned, in the range 0-65535.  Negative values
+          correspond to 32768-65535.
           Result is CSI 3 ; x ; y t
             Ps = 1 3 ;  2  -> Report xterm text-area position.
           Result is CSI 3 ; x ; y t

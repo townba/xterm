@@ -1,4 +1,4 @@
-# $XTermId: Makefile,v 1.64 2019/05/12 21:06:14 tom Exp $
+# $XTermId: Makefile,v 1.66 2019/05/27 19:29:23 tom Exp $
 # $FreeBSD: head/x11/xterm/Makefile 492827 2019-02-13 06:43:36Z ehaupt $
 
 # This is adapted from the FreeBSD port, installing as "xterm-dev" with
@@ -7,7 +7,7 @@
 # and "make makesum".
 
 PORTNAME=	xterm
-PORTVERSION=	345
+PORTVERSION=	346
 CATEGORIES=	x11
 MASTER_SITES=	ftp://ftp.invisible-island.net/xterm/:src1 \
 		https://invisible-mirror.net/archives/xterm/:src1
@@ -27,7 +27,7 @@ GNU_CONFIGURE=	yes
 
 CPE_VENDOR=	invisible-island
 
-# CONFIGURE_ARGS+=	--with-utempter --enable-narrowproto
+CONFIGURE_ARGS+=	--with-utempter --enable-narrowproto
 
 CONFLICTS=	x11iraf-[0-9]*
 
