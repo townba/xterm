@@ -1,4 +1,4 @@
-/* $XTermId: util.c,v 1.788 2019/05/27 18:10:06 tom Exp $ */
+/* $XTermId: util.c,v 1.799 2019/06/30 22:26:36 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -235,7 +235,7 @@ FlushScroll(XtermWidget xw)
 		    i = screen->savelines;
 		}
 		screen->savedlines = i;
-		ScrollBarDrawThumb(screen->scrollWidget);
+		ScrollBarDrawThumb(xw, 1);
 	    }
 	} else {
 	    scrolltop = screen->top_marg + shift;
@@ -296,6 +296,7 @@ FlushScroll(XtermWidget xw)
 		    MaxCols(screen),
 		    False);
     }
+    xtermTimedDbe(xw);
     return;
 }
 
@@ -689,7 +690,7 @@ xtermScroll(XtermWidget xw, int amount)
 		    if ((i += amount) > screen->savelines)
 			i = screen->savelines;
 		    screen->savedlines = i;
-		    ScrollBarDrawThumb(screen->scrollWidget);
+		    ScrollBarDrawThumb(xw, 1);
 		}
 	    } else {
 		scrolltop = screen->top_marg + shift;
@@ -1374,7 +1375,7 @@ DeleteLine(XtermWidget xw, int n)
 		if ((i += n) > screen->savelines)
 		    i = screen->savelines;
 		screen->savedlines = i;
-		ScrollBarDrawThumb(screen->scrollWidget);
+		ScrollBarDrawThumb(xw, 1);
 	    }
 	} else {
 	    scrolltop = screen->cur_row + shift;
@@ -1972,7 +1973,7 @@ do_erase_display(XtermWidget xw, int param, int mode)
 	/* xterm addition - erase saved lines. */
 	if (screen->eraseSavedLines) {
 	    screen->savedlines = 0;
-	    ScrollBarDrawThumb(screen->scrollWidget);
+	    ScrollBarDrawThumb(xw, 1);
 	}
 	break;
     }
@@ -2040,12 +2041,14 @@ do_ti_xtra_scroll(XtermWidget xw)
 static void
 CopyWait(XtermWidget xw)
 {
-#if OPT_DOUBLE_BUFFER
-    (void) xw;
-#else /* !OPT_DOUBLE_BUFFER */
     TScreen *screen = TScreenOf(xw);
     XEvent reply;
     XEvent *rep = &reply;
+
+#if OPT_DOUBLE_BUFFER
+    if (resource.buffered)
+	return;
+#endif
 
     for (;;) {
 	XWindowEvent(screen->display, VWindow(screen), ExposureMask, &reply);
@@ -2076,7 +2079,6 @@ CopyWait(XtermWidget xw)
 	    break;
 	}
     }
-#endif /* OPT_DOUBLE_BUFFER */
 }
 
 /*
@@ -2309,13 +2311,14 @@ xtermClear2(XtermWidget xw, int x, int y, unsigned width, unsigned height)
 	    if ((ww > 0) && (x < hmark2)) {
 		int w2 = (xx <= hmark2) ? (xx - x) : (hmark2 - x);
 #if OPT_DOUBLE_BUFFER
-		XFillRectangle(screen->display, draw,
-			       FillerGC(xw, screen),
-			       x, y, (unsigned) w2, (unsigned) h2);
-#else
-		XClearArea(screen->display, VWindow(screen),
-			   x, y, (unsigned) w2, (unsigned) h2, False);
+		if (resource.buffered) {
+		    XFillRectangle(screen->display, draw,
+				   FillerGC(xw, screen),
+				   x, y, (unsigned) w2, (unsigned) h2);
+		} else
 #endif
+		    XClearArea(screen->display, VWindow(screen),
+			       x, y, (unsigned) w2, (unsigned) h2, False);
 		x += w2;
 		ww -= w2;
 	    }
@@ -2331,11 +2334,15 @@ xtermClear2(XtermWidget xw, int x, int y, unsigned width, unsigned height)
 	}
     } else {
 #if OPT_DOUBLE_BUFFER
-	gc = FillerGC(xw, screen);
-	XFillRectangle(screen->display, draw, gc, x, y, width, height);
-#else
-	XClearArea(screen->display, VWindow(screen), x, y, width, height, False);
+	if (resource.buffered) {
+	    gc = FillerGC(xw, screen);
+	    XFillRectangle(screen->display, draw, gc,
+			   x, y, width, height);
+	} else
 #endif
+	    XClearArea(screen->display,
+		       VWindow(screen),
+		       x, y, width, height, False);
     }
 }
 
@@ -3055,6 +3062,7 @@ xtermXftDrawString(XtermWidget xw,
 	}
 	ncells = (int) len;
 #endif
+	xtermNeedSwap(xw, 1);
     }
     return ncells;
 }
@@ -5117,12 +5125,14 @@ extendedBoolean(const char *value, const FlagList * table, Cardinal limit)
 	       || (x_strcasecmp(value, "off") == 0)) {
 	result = False;
     } else if ((check = strtol(value, &next, 0)) >= 0 && FullS2L(value, next)) {
-	if (check >= (long) (limit + 2))	/* 2 is past False=0, True=1 */
+	if (check >= (long) limit)	/* i.e., past False=0, True=1 */
 	    check = True;
 	result = (int) check;
     } else {
-	for (n = 0; n < limit; ++n) {
-	    if (table[n].name != 0 && x_strcasecmp(value, table[n].name) == 0) {
+	for (n = 0; n < limit - 2; ++n) {
+	    if (table[n].name == NULL) {
+		break;
+	    } else if (x_strcasecmp(value, table[n].name) == 0) {
 		result = table[n].code;
 		break;
 	    }
@@ -5271,7 +5281,11 @@ VDrawable(TScreen *screen)
 void
 discardRenderDraw(TScreen *screen)
 {
-    if (screen->renderDraw) {
+    if (
+#if OPT_DOUBLE_BUFFER
+	   resource.buffered &&
+#endif
+	   screen->renderDraw) {
 	XftDrawDestroy(screen->renderDraw);
 	screen->renderDraw = NULL;
     }

@@ -30,7 +30,7 @@
  * sale, use or other dealings in this Software without prior written        *
  * authorization.                                                            *
  *****************************************************************************
-  $XTermId: xterm.log.html,v 1.2046 2019/05/27 23:10:12 tom Exp $
+  $XTermId: xterm.log.html,v 1.2068 2019/06/30 23:30:42 tom Exp $
   -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 
@@ -72,6 +72,8 @@
   CHANGELOG</a>).</p>
 
   <ul>
+    <li><a href="#xterm_347">Patch #347 - 2019/06/30</a></li>
+
     <li><a href="#xterm_346">Patch #346 - 2019/05/27</a></li>
 
     <li><a href="#xterm_345">Patch #345 - 2019/05/14</a></li>
@@ -975,6 +977,85 @@
     <li><a href="#xterm_02">Patch #2 - 1996/1/7</a></li>
 
     <li><a href="#xterm_01">Patch #1 - 1996/1/6</a></li>
+  </ul>
+
+  <h1><a name="xterm_347" id="xterm_347">Patch #347 -
+  2019/06/30</a></h1>
+
+  <ul>
+    <li>fix a few minor bugs found with Coverity.</li>
+
+    <li>improve double-buffering for scrollbars combined with
+    scrolled text; add <code>bufferedFPS</code> resource to control
+    the maximum rate of screen updates (report by Mike
+    Thornburg).</li>
+
+    <li>improve fixes for <code>DECCRA</code> handling of
+    double-width characters (patch by Martin Hostettler).</li>
+
+    <li>improve discussion of ECMA-48's typographical error for
+    <code>SD</code> in <code>ctlseqs.ms</code> (prompted by report
+    by Martin Hostettler).</li>
+
+    <li>correct off-by-one in parameter limit-check for
+    <code>DECCRA</code> (report by Martin Hostettler).</li>
+
+    <li>modify <code>saveCellData</code> to handle case where
+    double-width character is partially copied; that should be
+    blanked (report/testcase by Thomas Wolff).</li>
+
+    <li>add resource <code>buffered</code> to allow
+    enabling/disabling double-buffered mode.</li>
+
+    <li>two fixes for the double-buffer configuration, prompted by
+    MacPorts' switch to double-buffering (patch by Mike Thornburg,
+    MacPorts #58313):
+
+      <ul>
+        <li>ensure that the needSwap flag is set after drawing
+        TrueType text</li>
+
+        <li>corrected the drawable-parameter used for the
+        bar-cursor</li>
+      </ul>
+    </li>
+
+    <li>modify <code>ScrnRefresh</code> to ignore a case where the
+    left/right halves of a double-width character have been set to
+    different video attributes. The attribute to use is in the
+    left-half (report/testcase by Thomas Wolff).</li>
+
+    <li>correct a limit-check for <code>DECCRA</code> in case the
+    target lies off-screen (report/testcase by Thomas Wolff).</li>
+
+    <li>documentation errata (report by Thomas Wolff).</li>
+
+    <li>reset flags including wraparound and reverse-wrap when
+    switching to VT52 mode, while noting that DEC's standard
+    documention leaves that behavior <em>undefined</em> (report by
+    Thomas Wolff).</li>
+
+    <li>ensure that italic font is turned off on hard/soft resets
+    (report by Martin Hostettler).</li>
+
+    <li>improve responsiveness to X events while processing HTML or
+    SVG dumps (report by Martin Hostettler).</li>
+
+    <li>replace logic in <code>wcwidth.c</code> for detecting
+    double-width characters with binary-search table generated
+    using updated <code>uniset</code> (report by Robert Ross).</li>
+
+    <li>add test-driver for <code>wcwidth.c</code> to simplify
+    comparison with system's <code>wcwidth</code>.</li>
+
+    <li>ensure that window-manager name comparisons work when
+    active-icon is enabled, since <code><em>CSI</em>13t</code> uses
+    the window-manager name (Arch #62818).</li>
+
+    <li>trim a stray &ldquo;experimental&rdquo; in one of the
+    comments about the tcap-query feature, which has been a
+    supported feature since 2008 (see <a href="#xterm_238">patch
+    #238</a>).</li>
   </ul>
 
   <h1><a name="xterm_346" id="xterm_346">Patch #346 -

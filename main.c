@@ -1,4 +1,4 @@
-/* $XTermId: main.c,v 1.847 2019/04/24 08:53:47 tom Exp $ */
+/* $XTermId: main.c,v 1.852 2019/06/30 22:31:07 tom Exp $ */
 
 /*
  * Copyright 2002-2018,2019 by Thomas E. Dickey
@@ -951,6 +951,10 @@ static XtResource application_resources[] =
 #if OPT_MAXIMIZE
     Bres(XtNmaximized, XtCMaximized, maximized, False),
     Sres(XtNfullscreen, XtCFullscreen, fullscreen_s, "off"),
+#endif
+#if OPT_DOUBLE_BUFFER
+    Bres(XtNbuffered, XtCBuffered, buffered, True),
+    Ires(XtNbufferedFPS, XtCBufferedFPS, buffered_fps, 40),
 #endif
 };
 
@@ -2423,6 +2427,12 @@ main(int argc, char *argv[]ENVP_ARG)
 				  application_resources,
 				  XtNumber(application_resources), NULL, 0);
 	TRACE_XRES();
+#if OPT_DOUBLE_BUFFER
+	if (resource.buffered_fps <= 0)
+	    resource.buffered_fps = DEF_BUFFER_RATE;
+	if (resource.buffered_fps > 100)
+	    resource.buffered_fps = 100;
+#endif
 #if OPT_MAXIMIZE
 	resource.fullscreen = extendedBoolean(resource.fullscreen_s,
 					      tblFullscreen,
@@ -3150,6 +3160,8 @@ typedef enum {			/* c == child, p == parent                        */
     PTY_EXEC			/* p->c: window has been mapped the first time    */
 } status_t;
 
+#define HANDSHAKE_LEN	1024
+
 typedef struct {
     status_t status;
     int error;
@@ -3157,12 +3169,12 @@ typedef struct {
     int tty_slot;
     int rows;
     int cols;
-    char buffer[1024];
+    char buffer[HANDSHAKE_LEN];
 } handshake_t;
 
 /* the buffer is large enough that we can always have a trailing null */
 #define copy_handshake(dst, src) \
-	strncpy(dst.buffer, src, sizeof(dst.buffer) - 1)[sizeof(dst.buffer) - 1] = '\0'
+	strncpy(dst.buffer, src, HANDSHAKE_LEN - 1)[HANDSHAKE_LEN - 1] = '\0'
 
 #if OPT_TRACE
 static void
@@ -4186,6 +4198,7 @@ spawnXTerm(XtermWidget xw, unsigned line_speed)
 		    if (ttyfd >= 0)
 			close(ttyfd);
 		    free(ttydev);
+		    handshake.buffer[HANDSHAKE_LEN - 1] = '\0';
 		    ttydev = x_strdup(handshake.buffer);
 		}
 
@@ -5109,6 +5122,7 @@ spawnXTerm(XtermWidget xw, unsigned line_speed)
 		    tslot = handshake.tty_slot;
 #endif /* USE_SYSV_UTMP */
 		    free(ttydev);
+		    handshake.buffer[HANDSHAKE_LEN - 1] = '\0';
 		    ttydev = x_strdup(handshake.buffer);
 		    break;
 		case PTY_NEW:

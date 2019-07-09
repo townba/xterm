@@ -1,4 +1,4 @@
-/* $XTermId: ptyx.h,v 1.958 2019/05/24 08:19:28 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.962 2019/06/29 10:13:54 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -2458,6 +2458,11 @@ typedef struct {
 	int		lft_marg;	/* left column of "	    "	*/
 	int		rgt_marg;	/* right column of "	    "	*/
 	Widget		scrollWidget;	/* pointer to scrollbar struct	*/
+#if OPT_DOUBLE_BUFFER
+	int		buffered_sb;	/* nonzero when pending update	*/
+	struct timeval	buffered_at;	/* reference time, for FPS	*/
+#define DbeMsecs(xw)	(1000L / (long) resource.buffered_fps)
+#endif
 	/*
 	 * Indices used to keep track of the top of the vt100 window and
 	 * the saved lines, taking scrolling into account.
@@ -2597,6 +2602,7 @@ typedef struct {
 #endif
 
 #if OPT_VT52_MODE
+	IFlags		vt52_save_flags;
 	Char		vt52_save_curgl;
 	Char		vt52_save_curgr;
 	Char		vt52_save_curss;
