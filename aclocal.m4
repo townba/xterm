@@ -1,4 +1,4 @@
-dnl $XTermId: aclocal.m4,v 1.432 2019/06/16 13:45:01 tom Exp $
+dnl $XTermId: aclocal.m4,v 1.435 2019/07/21 19:41:06 tom Exp $
 dnl
 dnl ---------------------------------------------------------------------------
 dnl
@@ -1080,7 +1080,7 @@ if test "$GCC" = yes ; then
 fi
 ])dnl
 dnl ---------------------------------------------------------------------------
-dnl CF_GCC_WARNINGS version: 34 updated: 2019/04/08 17:50:29
+dnl CF_GCC_WARNINGS version: 35 updated: 2019/06/16 09:45:01
 dnl ---------------
 dnl Check if the compiler supports useful warning options.  There's a few that
 dnl we don't use, simply because they're too noisy:
@@ -1767,12 +1767,13 @@ ifelse([$1],,,[$1=$PATH_SEPARATOR])
 	AC_MSG_RESULT($PATH_SEPARATOR)
 ])dnl
 dnl ---------------------------------------------------------------------------
-dnl CF_PATH_PROG version: 9 updated: 2012/10/04 20:12:20
+dnl CF_PATH_PROG version: 10 updated: 2019/06/30 19:44:43
 dnl ------------
 dnl Check for a given program, defining corresponding symbol.
 dnl	$1 = environment variable, which is suffixed by "_PATH" in the #define.
 dnl	$2 = program name to find.
 dnl	$3 = optional list of additional program names to test.
+dnl $4 = $PATH
 dnl
 dnl If there is more than one token in the result, #define the remaining tokens
 dnl to $1_ARGS.  We need this for 'install' in particular.
@@ -1782,7 +1783,7 @@ dnl
 AC_DEFUN([CF_PATH_PROG],[
 AC_REQUIRE([CF_PATHSEP])
 test -z "[$]$1" && $1=$2
-AC_PATH_PROGS($1,[$]$1 $2 $3,[$]$1)
+AC_PATH_PROGS($1,[$]$1 $2 ifelse($3,,,$3),[$]$1, ifelse($4,,,$4))
 
 cf_path_prog=""
 cf_path_args=""
@@ -2585,6 +2586,38 @@ AC_DEFUN([CF_SYS_ERRLIST],
 [
     CF_CHECK_ERRNO(sys_nerr)
     CF_CHECK_ERRNO(sys_errlist)
+])dnl
+dnl ---------------------------------------------------------------------------
+dnl CF_TERMIOS_TYPES version: 1 updated: 2019/07/21 08:54:39
+dnl ----------------
+dnl https://pubs.opengroup.org/onlinepubs/009695399/basedefs/termios.h.html
+dnl says that tcflag_t, speed_t and cc_t are typedef'd.  If they are not,
+dnl fallback to historical values.
+AC_DEFUN([CF_TERMIOS_TYPES],[
+
+AC_CACHE_CHECK(for termios type tcflag_t, cf_cv_havetype_tcflag_t,[
+	AC_TRY_COMPILE([#include <termios.h>],[
+		tcflag_t x = 0],
+		[cf_cv_havetype_tcflag_t=yes],
+		[cf_cv_havetype_tcflag_t=no])
+])
+test "$cf_cv_havetype_tcflag_t" = no && AC_DEFINE(tcflag_t,unsigned long,[Define usable value of tcflag_t if not declared])
+
+AC_CACHE_CHECK(for termios type speed_t, cf_cv_havetype_speed_t,[
+	AC_TRY_COMPILE([#include <termios.h>],[
+		speed_t x = 0],
+		[cf_cv_havetype_speed_t=yes],
+		[cf_cv_havetype_speed_t=no])
+])
+test "$cf_cv_havetype_speed_t" = no && AC_DEFINE(speed_t,unsigned short,[Define usable value of speed_t if not declared])
+
+AC_CACHE_CHECK(for termios type cc_t, cf_cv_havetype_cc_t,[
+	AC_TRY_COMPILE([#include <termios.h>],[
+		cc_t x = 0],
+		[cf_cv_havetype_cc_t=yes],
+		[cf_cv_havetype_cc_t=no])
+])
+test "$cf_cv_havetype_cc_t" = no && AC_DEFINE(cc_t,unsigned char,[Define usable value of cc_t if not declared])
 ])dnl
 dnl ---------------------------------------------------------------------------
 dnl CF_TERMIO_C_ISPEED version: 3 updated: 2012/10/04 20:12:20
@@ -4603,6 +4636,17 @@ AC_DEFUN([CF_X_EXT],[
 CF_TRY_PKG_CONFIG(Xext,,[
 	AC_CHECK_LIB(Xext,XextCreateExtension,
 		[CF_ADD_LIB(Xext)])])
+])dnl
+dnl ---------------------------------------------------------------------------
+dnl CF_X_EXT_DOUBLE_BUFFER version: 1 updated: 2019/07/18 21:09:40
+dnl ----------------------
+AC_DEFUN([CF_X_EXT_DOUBLE_BUFFER],[
+AC_REQUIRE([CF_X_EXT])
+AC_CHECK_HEADER(X11/extensions/Xdbe.h,
+	AC_DEFINE(HAVE_X11_EXTENSIONS_XDBE_H,1,[Define to 1 if we have X11/extensions/Xdbe.h])
+	AC_CHECK_FUNC(XdbeSwapBuffers,
+				  [AC_DEFINE(HAVE_XDBESWAPBUFFERS,1,[Define to 1 if we have XdbeSwapBuffers])
+				   cf_x_ext_double_buffer=yes]))
 ])dnl
 dnl ---------------------------------------------------------------------------
 dnl CF_X_FONTCONFIG version: 6 updated: 2015/04/12 15:39:00

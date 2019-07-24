@@ -1,4 +1,4 @@
-/* $XTermId: util.c,v 1.799 2019/06/30 22:26:36 tom Exp $ */
+/* $XTermId: util.c,v 1.803 2019/07/20 00:10:34 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -779,7 +779,7 @@ void
 xtermScrollLR(XtermWidget xw, int amount, Bool toLeft)
 {
     if (amount > 0) {
-	xtermColScroll(xw, amount, toLeft, 0);
+	xtermColScroll(xw, amount, toLeft, ScrnLeftMargin(xw));
     }
 }
 
@@ -2045,7 +2045,7 @@ CopyWait(XtermWidget xw)
     XEvent reply;
     XEvent *rep = &reply;
 
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
     if (resource.buffered)
 	return;
 #endif
@@ -2310,7 +2310,7 @@ xtermClear2(XtermWidget xw, int x, int y, unsigned width, unsigned height)
 	    }
 	    if ((ww > 0) && (x < hmark2)) {
 		int w2 = (xx <= hmark2) ? (xx - x) : (hmark2 - x);
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 		if (resource.buffered) {
 		    XFillRectangle(screen->display, draw,
 				   FillerGC(xw, screen),
@@ -2333,7 +2333,7 @@ xtermClear2(XtermWidget xw, int x, int y, unsigned width, unsigned height)
 	    XFillRectangle(screen->display, draw, gc, x, y, width, height);
 	}
     } else {
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 	if (resource.buffered) {
 	    gc = FillerGC(xw, screen);
 	    XFillRectangle(screen->display, draw, gc,
@@ -2703,7 +2703,7 @@ ReverseVideo(XtermWidget xw)
     ToSwap listToSwap[5];
     int numToSwap = 0;
 
-    TRACE(("ReverseVideo\n"));
+    TRACE(("ReverseVideo now %s\n", BtoS(xw->misc.re_verse)));
 
     /*
      * Swap SGR foreground and background colors.  By convention, these are
@@ -2736,6 +2736,7 @@ ReverseVideo(XtermWidget xw)
 #endif /* NO_ACTIVE_ICON */
 
     xw->misc.re_verse = (Boolean) !xw->misc.re_verse;
+    TRACE(("...swapping done, set ReverseVideo %s\n", BtoS(xw->misc.re_verse)));
 
     if (XtIsRealized((Widget) xw)) {
 	xtermDisplayCursor(xw);
@@ -2772,7 +2773,7 @@ ReverseVideo(XtermWidget xw)
     ReverseOldColors(xw);
     set_cursor_gcs(xw);
     update_reversevideo();
-    TRACE(("...ReverseVideo\n"));
+    TRACE(("...ReverseVideo now %s\n", BtoS(xw->misc.re_verse)));
 }
 
 void
@@ -3686,6 +3687,7 @@ drawXtermText(XtermWidget xw,
 #define NOT_BOLD (attr_flags & ~BOLDATTR(screen))
 	font = getNormXftFont(xw, attr_flags, &did_ul);
 	font0 = IS_BOLD ? getNormXftFont(xw, NOT_BOLD, &did_ul) : font;
+	(void) font0;
 #if OPT_RENDERWIDE
 	wfont = getWideXftFont(xw, attr_flags);
 	wfont0 = IS_BOLD ? getWideXftFont(xw, NOT_BOLD) : wfont;
@@ -4160,7 +4162,6 @@ drawXtermText(XtermWidget xw,
 		else if Map2Sbuf(0xbd, 0x0153)
 		else if Map2Sbuf(0xbe, 0x0178)
 		/* *INDENT-ON* */
-
 	    }
 	    if (screen->unicode_font
 		&& (text[src] == ANSI_DEL ||
@@ -5267,7 +5268,7 @@ XParseXineramaGeometry(Display *display, char *parsestring, struct Xinerama_geom
     return XParseGeometry(parsestring, &ret->x, &ret->y, &ret->w, &ret->h);
 }
 
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 Window
 VDrawable(TScreen *screen)
 {
@@ -5282,7 +5283,7 @@ void
 discardRenderDraw(TScreen *screen)
 {
     if (
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 	   resource.buffered &&
 #endif
 	   screen->renderDraw) {

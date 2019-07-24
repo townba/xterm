@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1675 2019/06/30 19:18:53 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1688 2019/07/22 21:14:11 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -104,10 +104,6 @@
 
 #endif
 
-#if OPT_DOUBLE_BUFFER
-#include <X11/extensions/Xdbe.h>
-#endif
-
 #if OPT_WIDE_CHARS
 #include <xutf8.h>
 #include <wcwidth.h>
@@ -115,6 +111,10 @@
 #ifdef HAVE_LANGINFO_CODESET
 #include <langinfo.h>
 #endif
+#endif
+
+#if USE_DOUBLE_BUFFER
+#include <X11/extensions/Xdbe.h>
 #endif
 
 #if OPT_INPUT_METHOD
@@ -417,7 +417,6 @@ static XtActionsRec actionsList[] = {
 #endif
 };
 /* *INDENT-ON* */
-
 #define SPS screen.printer_state
 
 static XtResource xterm_resources[] =
@@ -948,7 +947,6 @@ xtermAddInput(Widget w)
 #endif
     };
     /* *INDENT-ON* */
-
     TRACE_TRANS("BEFORE", w);
     XtAppAddActions(app_con, input_actions, XtNumber(input_actions));
     XtAugmentTranslations(w, XtParseTranslationTable(defaultTranslations));
@@ -1097,7 +1095,7 @@ setExtendedFG(XtermWidget xw)
      */
 #if OPT_PC_COLORS		/* XXXJTL should be settable at runtime (resource or OSC?) */
     if (TScreenOf(xw)->boldColors
-	&& (!hasDirectFG(xw->flags))
+	&& (!xw->sgr_38_xcolors)
 	&& (fg >= 0)
 	&& (fg < 8)
 	&& (xw->flags & BOLD))
@@ -1135,6 +1133,7 @@ static void
 reset_SGR_Foreground(XtermWidget xw)
 {
     xw->sgr_foreground = -1;
+    xw->sgr_38_xcolors = False;
     clrDirectFG(xw->flags);
     setExtendedFG(xw);
 }
@@ -1281,7 +1280,7 @@ set_ansi_conformance(TScreen *screen, int level)
  * Set scrolling margins.  VTxxx terminals require that the top/bottom are
  * different, so we have at least two lines in the scrolling region.
  */
-void
+static void
 set_tb_margins(TScreen *screen, int top, int bottom)
 {
     TRACE(("set_tb_margins %d..%d, prior %d..%d\n",
@@ -1298,7 +1297,7 @@ set_tb_margins(TScreen *screen, int top, int bottom)
 	screen->bot_marg = screen->max_row;
 }
 
-void
+static void
 set_lr_margins(TScreen *screen, int left, int right)
 {
     TRACE(("set_lr_margins %d..%d, prior %d..%d\n",
@@ -1318,11 +1317,24 @@ set_lr_margins(TScreen *screen, int left, int right)
 #define reset_tb_margins(screen) set_tb_margins(screen, 0, screen->max_row)
 #define reset_lr_margins(screen) set_lr_margins(screen, 0, screen->max_col)
 
-static void
-reset_margins(TScreen *screen)
+void
+resetMargins(XtermWidget xw)
 {
+    TScreen *screen = TScreenOf(xw);
+
+    UIntClr(xw->flags, LEFT_RIGHT);
     reset_tb_margins(screen);
     reset_lr_margins(screen);
+}
+
+static void
+resetRendition(XtermWidget xw)
+{
+    TScreen *screen = TScreenOf(xw);
+    (void) screen;
+    ResetItalics(xw);
+    UIntClr(xw->flags,
+	    (SGR_MASK | SGR_MASK2 | INVISIBLE));
 }
 
 void
@@ -1779,7 +1791,6 @@ static struct {
 #endif
 };
 /* *INDENT-ON* */
-
 #if OPT_DEC_RECTOPS
 static char *
 encode_scs(DECNRCM_codes value)
@@ -3062,13 +3073,16 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 			reply.a_param[count++] = 8;	/* user-defined-keys */
 		    reply.a_param[count++] = 9;		/* national replacement charsets */
 		    reply.a_param[count++] = 15;	/* technical characters */
+		    reply.a_param[count++] = 16;	/* locator port */
 		    if (screen->terminal_id >= 400) {
-			reply.a_param[count++] = 18;	/* windowing capability */
+			reply.a_param[count++] = 17;	/* terminal state interrogation */
+			reply.a_param[count++] = 18;	/* windowing extension */
 			reply.a_param[count++] = 21;	/* horizontal scrolling */
 		    }
 		    if_OPT_ISO_COLORS(screen, {
 			reply.a_param[count++] = 22;	/* ANSI color, VT525 */
 		    });
+		    reply.a_param[count++] = 28;	/* rectangular editing */
 #if OPT_DEC_LOCATOR
 		    reply.a_param[count++] = 29;	/* ANSI text locator */
 #endif
@@ -3211,9 +3225,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		case DEFAULT:
 		    /* FALLTHRU */
 		case 0:
-		    ResetItalics(xw);
-		    UIntClr(xw->flags,
-			    (SGR_MASK | SGR_MASK2 | INVISIBLE));
+		    resetRendition(xw);
 		    if_OPT_ISO_COLORS(screen, {
 			reset_SGR_Colors(xw);
 		    });
@@ -3336,6 +3348,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		case 37:
 		    if_OPT_ISO_COLORS(screen, {
 			xw->sgr_foreground = (op - 30);
+			xw->sgr_38_xcolors = False;
 			clrDirectFG(xw->flags);
 			setExtendedFG(xw);
 		    });
@@ -3349,6 +3362,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 			if (parse_extended_colors(xw, &value, &item,
 						  &extended)) {
 			    xw->sgr_foreground = value;
+			    xw->sgr_38_xcolors = True;
 			    setDirectFG(xw->flags, extended);
 			    setExtendedFG(xw);
 			}
@@ -3376,6 +3390,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		case 47:
 		    if_OPT_ISO_COLORS(screen, {
 			xw->sgr_background = (op - 40);
+			xw->sgr_38_xcolors = False;
 			clrDirectBG(xw->flags);
 			setExtendedBG(xw);
 		    });
@@ -3386,6 +3401,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 			if (parse_extended_colors(xw, &value, &item,
 						  &extended)) {
 			    xw->sgr_background = value;
+			    xw->sgr_38_xcolors = True;
 			    setDirectBG(xw->flags, extended);
 			    setExtendedBG(xw);
 			}
@@ -3690,7 +3706,12 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	    TRACE(("CASE_DECALN - alignment test\n"));
 	    if (screen->cursor_state)
 		HideCursor();
-	    reset_margins(screen);
+	    /*
+	     * DEC STD 070 does not mention left/right margins.  Likely the
+	     * text was for VT100, and not updated for VT420.
+	     */
+	    resetRendition(xw);
+	    resetMargins(xw);
 	    CursorSet(screen, 0, 0, xw->flags);
 	    xtermParseRect(xw, 0, 0, &myRect);
 	    ScrnFillRectangle(xw, &myRect, 'E', 0, False);
@@ -5339,7 +5360,7 @@ in_put(XtermWidget xw)
     TScreen *screen = TScreenOf(xw);
     int i;
     int update = VTbuffer->update;
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
     int should_wait = 1;
 #endif
 
@@ -5376,7 +5397,7 @@ in_put(XtermWidget xw)
 		FD_CLR(screen->respond, &select_mask);
 		break;
 	    }
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 	    if (resource.buffered && should_wait) {
 		/* wait for potential extra data (avoids some flickering) */
 		usleep((unsigned) DbeMsecs(xw));
@@ -5812,9 +5833,9 @@ HandleStructNotify(Widget w GCC_UNUSED,
 		   event->xconfigure.y, event->xconfigure.x,
 		   event->xconfigure.height, event->xconfigure.width));
 
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 	    discardRenderDraw(TScreenOf(xw));
-#endif /* OPT_DOUBLE_BUFFER */
+#endif /* USE_DOUBLE_BUFFER */
 
 #if OPT_TOOLBAR
 	    /*
@@ -6053,16 +6074,13 @@ dpmodes(XtermWidget xw, BitFunc func)
 	    if (screen->c132) {
 		if (!(xw->flags & NOCLEAR_COLM))
 		    ClearScreen(xw);
-		CursorSet(screen, 0, 0, xw->flags);
 		if ((j = IsSM()? 132 : 80) !=
 		    ((xw->flags & IN132COLUMNS) ? 132 : 80) ||
 		    j != MaxCols(screen))
 		    RequestResize(xw, -1, j, True);
 		(*func) (&xw->flags, IN132COLUMNS);
-		if (xw->flags & IN132COLUMNS) {
-		    UIntClr(xw->flags, LEFT_RIGHT);
-		    reset_lr_margins(screen);
-		}
+		resetMargins(xw);
+		CursorSet(screen, 0, 0, xw->flags);
 	    }
 	    break;
 	case srm_DECSCLM:	/* (slow scroll)        */
@@ -8362,7 +8380,6 @@ lookupSelectUnit(XtermWidget xw, Cardinal item, String value)
 #endif
     };
     /* *INDENT-ON* */
-
     TScreen *screen = TScreenOf(xw);
     String next = x_skip_nonblanks(value);
     Cardinal n;
@@ -9237,6 +9254,7 @@ VTInitialize(Widget wrequest,
     }
     wnew->sgr_foreground = -1;
     wnew->sgr_background = -1;
+    wnew->sgr_38_xcolors = False;
     clrDirectFG(wnew->flags);
     clrDirectFG(wnew->flags);
 #endif /* OPT_ISO_COLORS */
@@ -10190,6 +10208,7 @@ void
 initBorderGC(XtermWidget xw, VTwin *win)
 {
     TScreen *screen = TScreenOf(xw);
+    Pixel filler;
 
     TRACE(("initBorderGC core %#lx, %#lx text %#lx, %#lx\n",
 	   xw->core.background_pixel,
@@ -10203,14 +10222,16 @@ initBorderGC(XtermWidget xw, VTwin *win)
 	 */
 	if ((xw->core.background_pixel == T_COLOR(screen, TEXT_BG)) &&
 	    (xw->core.border_pixel == T_COLOR(screen, TEXT_FG))) {
-	    setCgsFore(xw, win, gcBorder, T_COLOR(screen, TEXT_BG));
-	    setCgsBack(xw, win, gcBorder, T_COLOR(screen, TEXT_BG));
+	    filler = T_COLOR(screen, TEXT_BG);
 	} else {
-	    setCgsFore(xw, win, gcBorder, xw->core.border_pixel);
-	    setCgsBack(xw, win, gcBorder, xw->core.border_pixel);
+	    filler = xw->core.border_pixel;
 	}
+	TRACE((" border %#lx\n", filler));
+	setCgsFore(xw, win, gcBorder, filler);
+	setCgsBack(xw, win, gcBorder, filler);
 	win->border_gc = getCgsGC(xw, win, gcBorder);
     } else {
+	TRACE((" border unused\n"));
 	win->border_gc = 0;
     }
 
@@ -10219,12 +10240,15 @@ initBorderGC(XtermWidget xw, VTwin *win)
      * in xtermClear2().  When not double-buffering, the XClearArea call works,
      * without requiring a separate GC.
      */
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
     if (resource.buffered) {
-	unsigned long filler;
 	filler = (((xw->flags & BG_COLOR) && (xw->cur_background >= 0))
-		  ? (unsigned long) xw->cur_background
-		  : xw->core.background_pixel);
+		  ? getXtermBG(xw, xw->flags, xw->cur_background)
+		  : T_COLOR(screen, TEXT_BG));
+
+	TRACE((" filler %#lx %s\n",
+	       filler,
+	       xw->misc.re_verse ? "reverse" : "normal"));
 
 	setCgsFore(xw, win, gcFiller, filler);
 	setCgsBack(xw, win, gcFiller, filler);
@@ -10455,7 +10479,7 @@ VTRealize(Widget w,
 		      (int) xw->core.depth,
 		      InputOutput, CopyFromParent,
 		      *valuemask | CWBitGravity, values);
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
     screen->fullVwin.drawable = screen->fullVwin.window;
 
     if (resource.buffered) {
@@ -10475,7 +10499,7 @@ VTRealize(Widget w,
 	screen->needSwap = 1;
 	TRACE(("initialized double-buffering\n"));
     }
-#endif /* OPT_DOUBLE_BUFFER */
+#endif /* USE_DOUBLE_BUFFER */
     screen->event_mask = values->event_mask;
 
 #ifndef NO_ACTIVE_ICON
@@ -10550,7 +10574,7 @@ VTRealize(Widget w,
 			  InputOutput, CopyFromParent,
 			  *valuemask | CWBitGravity | CWBorderPixel,
 			  values);
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 	screen->iconVwin.drawable = screen->iconVwin.window;
 #endif
 	XtVaSetValues(shell,
@@ -10612,7 +10636,7 @@ VTRealize(Widget w,
     set_cur_row(screen, 0);
     set_max_col(screen, Width(screen) / screen->fullVwin.f_width - 1);
     set_max_row(screen, Height(screen) / screen->fullVwin.f_height - 1);
-    reset_margins(screen);
+    resetMargins(xw);
 
     memset(screen->sc, 0, sizeof(screen->sc));
 
@@ -11927,7 +11951,7 @@ ReallyReset(XtermWidget xw, Bool full, Bool saved)
 #endif
 
     /* reset scrolling region */
-    reset_margins(screen);
+    resetMargins(xw);
 
     bitclr(&xw->flags, ORIGIN);
 
@@ -12637,7 +12661,6 @@ VTInitTranslations(void)
     };
 #undef DATA
     /* *INDENT-ON* */
-
     char *result = 0;
 
     int pass;

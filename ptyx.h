@@ -1,4 +1,4 @@
-/* $XTermId: ptyx.h,v 1.962 2019/06/29 10:13:54 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.964 2019/07/19 00:40:41 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -2053,6 +2053,7 @@ typedef struct {
 	int		cur_background;  /* current background color	*/
 	int		sgr_foreground;  /* current SGR foreground color */
 	int		sgr_background;  /* current SGR background color */
+	Boolean		sgr_38_xcolors;  /* true if ISO 8613 extension	*/
 #endif
 } SavedCursor;
 
@@ -2097,7 +2098,7 @@ typedef struct {
 	SbInfo		sb_info;
 	GC		filler_gc;	/* filler's fg/bg		*/
 	GC		border_gc;	/* inner border's fg/bg		*/
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 	Drawable	drawable;	/* X drawable id                */
 #endif
 #if OPT_TOOLBAR
@@ -2458,7 +2459,7 @@ typedef struct {
 	int		lft_marg;	/* left column of "	    "	*/
 	int		rgt_marg;	/* right column of "	    "	*/
 	Widget		scrollWidget;	/* pointer to scrollbar struct	*/
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 	int		buffered_sb;	/* nonzero when pending update	*/
 	struct timeval	buffered_at;	/* reference time, for FPS	*/
 #define DbeMsecs(xw)	(1000L / (long) resource.buffered_fps)
@@ -3111,6 +3112,7 @@ typedef	struct {
 #if OPT_ISO_COLORS
 	int	sgr_foreground;
 	int	sgr_background;
+	Boolean	sgr_38_xcolors;
 #endif
     } stack[MAX_SAVED_SGR];
 } SavedSGR;
@@ -3137,6 +3139,7 @@ typedef struct _XtermWidgetRec {
 #if OPT_ISO_COLORS
     int		sgr_foreground; /* current SGR foreground color */
     int		sgr_background; /* current SGR background color */
+    Boolean	sgr_38_xcolors;	/* true if ISO 8613 extension	*/
 #endif
     IFlags	initflags;	/* initial mode flags		*/
     Tabs	tabs;		/* tabstops of the terminal	*/
@@ -3263,7 +3266,7 @@ typedef struct _TekWidgetRec {
 /* set when the line contains blinking text.
  */
 
-#if OPT_ZICONBEEP || OPT_TOOLBAR || (OPT_DOUBLE_BUFFER && OPT_RENDERFONT)
+#if OPT_ZICONBEEP || OPT_TOOLBAR || (USE_DOUBLE_BUFFER && OPT_RENDERFONT)
 #define HANDLE_STRUCT_NOTIFY 1
 #else
 #define HANDLE_STRUCT_NOTIFY 0
@@ -3347,7 +3350,7 @@ typedef struct _TekWidgetRec {
 #define TWindow(screen)		WhichTWin(screen)->window
 #define TShellWindow		XtWindow(SHELL_OF(tekWidget))
 
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 extern Window VDrawable(TScreen * /* screen */);
 #else
 #define VDrawable(screen)	VWindow(screen)

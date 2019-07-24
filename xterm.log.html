@@ -30,14 +30,14 @@
  * sale, use or other dealings in this Software without prior written        *
  * authorization.                                                            *
  *****************************************************************************
-  $XTermId: xterm.log.html,v 1.2068 2019/06/30 23:30:42 tom Exp $
+  $XTermId: xterm.log.html,v 1.2089 2019/07/22 22:31:50 tom Exp $
   -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 
 <html>
 <head>
   <meta name="generator" content=
-  "HTML Tidy for Linux (vers 25 March 2009), see www.w3.org">
+  "HTML Tidy for HTML5 for Linux version 5.2.0">
 
   <title>XTERM - Change Log</title>
   <link rel="author" href="mailto:dickey@invisible-island.net">
@@ -53,8 +53,9 @@
 <body>
   <hr>
 
-  <p>Copyright &copy; 1997-2017,2018 by <a href=
+  <p>Copyright &copy; 1997-2018,2019 by <a href=
   "mailto:dickey@invisible-island.net">Thomas E. Dickey</a></p>
+
   <hr>
 
   <h1>Contents</h1>
@@ -72,6 +73,8 @@
   CHANGELOG</a>).</p>
 
   <ul>
+    <li><a href="#xterm_348">Patch #348 - 2019/07/22</a></li>
+
     <li><a href="#xterm_347">Patch #347 - 2019/06/30</a></li>
 
     <li><a href="#xterm_346">Patch #346 - 2019/05/27</a></li>
@@ -846,11 +849,9 @@
     <li><a href="#xterm_47">Patch #47 - 1997/7/13 - XFree86
     3.9i</a></li>
 
-    <li><a href="#xterm_46">Patch #46 - 1997/7/4 - XFree86
-    3.9h</a></li>
+    <li><a href="#xterm_46">Patch #46 - 1997/7/4 - XFree86 3.9h</a></li>
 
-    <li><a href="#xterm_45">Patch #45 - 1997/7/2 - XFree86
-    3.9h</a></li>
+    <li><a href="#xterm_45">Patch #45 - 1997/7/2 - XFree86 3.9h</a></li>
 
     <li><a href="#xterm_44">Patch #44 - 1997/6/22 - XFree86
     3.9g</a></li>
@@ -873,17 +874,14 @@
     <li><a href="#xterm_38">Patch #38 - 1997/5/22 - XFree86
     3.2Xh</a></li>
 
-    <li><a href="#xterm_37">Patch #37 - 1997/5/7 - XFree86
-    3.9a</a></li>
+    <li><a href="#xterm_37">Patch #37 - 1997/5/7 - XFree86 3.9a</a></li>
 
     <li><a href="#xterm_36">Patch #36 - 1997/1/16 - XFree86
     3.2r</a></li>
 
-    <li><a href="#xterm_35">Patch #35 - 1997/1/7 - XFree86
-    3.2o</a></li>
+    <li><a href="#xterm_35">Patch #35 - 1997/1/7 - XFree86 3.2o</a></li>
 
-    <li><a href="#xterm_34">Patch #34 - 1997/1/5 - XFree86
-    3.2o</a></li>
+    <li><a href="#xterm_34">Patch #34 - 1997/1/5 - XFree86 3.2o</a></li>
 
     <li><a href="#xterm_33">Patch #33 - 1996/11/24 - XFree86
     3.2</a></li>
@@ -979,6 +977,75 @@
     <li><a href="#xterm_01">Patch #1 - 1996/1/6</a></li>
   </ul>
 
+  <h1><a name="xterm_348" id="xterm_348">Patch #348 -
+  2019/07/22</a></h1>
+
+  <ul>
+    <li>update window-manager hints when exiting Tek4014 mode
+    (Debian #932569, patch by Jonathan Irwin).</li>
+
+    <li>fix a misformatted printf in <code>report-sgr.pl</code>.</li>
+
+    <li>add configure check for termios types, to improve
+    compiler-warnings.</li>
+
+    <li>ensure that when resetting margins, to also reset
+    <code>DECLRMM</code>. This affects <code>DECCOLM</code>,
+    <code>DECALN</code> (although DEC STD 070 mentions only
+    top/bottom margins), and <code>DECSTR</code>.</li>
+
+    <li>corrected order of reset/move when setting
+    <code>DECCOLM</code>, and make it more consistent by always
+    resetting margins, rather than only when the mode is changed
+    (report by James Holderness).</li>
+
+    <li>compile-in double-buffer support by default, changing the
+    configure option to set the default resource value for
+    <code>buffered</code> to true or false.</li>
+
+    <li>take in account the reverse-video state when computing the
+    filler-color used when clearing the screen in double-buffering
+    configuration.</li>
+
+    <li>correct logic for filtering scrollbar-updates when
+    <code>buffered</code> resource is compiled-in but not enabled
+    (report by Paul Lampert).</li>
+
+    <li>improve state saved/restored for cursor-save and SGR stack
+    features.</li>
+
+    <li>improve description of 1006 and 1005 mouse modes, to avoid
+    implying that they use character-parameters (report by Bryan
+    Christ).</li>
+
+    <li>explain in <code>ctlseqs.ms</code> that some of the numeric
+    keypad keys were xterm extensions rather than VT100/VT220
+    terminal features (prompted by discussion with Thomas
+    Wolff).</li>
+
+    <li>explain in <code>ctlseqs.ms</code> how the DEC windowing
+    extension is supported by xterm.</li>
+
+    <li>add 28 rectangular editing to the primary response
+    (suggested by Thomas Wolff).</li>
+
+    <li>fix a typo, improve wording in <code>ctlseqs.ms</code>
+    (Thomas Wolff).</li>
+
+    <li>fix internal column-parameter when <code>SL</code> or
+    <code>SR</code> is used with left/right margins (patch by
+    Thomas Wolff).</li>
+
+    <li>fix off-by-one in VT52 graphics character mapping (patch by
+    Thomas Wolff).</li>
+
+    <li>use <code>_X_UNUSED</code>, etc., when available as a
+    fallback for <code>GCC_UNUSED</code>, etc., to reduce compiler
+    warnings when building with <code><em>imake</em></code>.</li>
+
+    <li>update config.sub</li>
+  </ul>
+
   <h1><a name="xterm_347" id="xterm_347">Patch #347 -
   2019/06/30</a></h1>
 
@@ -1050,7 +1117,8 @@
 
     <li>ensure that window-manager name comparisons work when
     active-icon is enabled, since <code><em>CSI</em>13t</code> uses
-    the window-manager name (Arch #62818).</li>
+    the window-manager name (report by Glenn Golden, Arch
+    #62818).</li>
 
     <li>trim a stray &ldquo;experimental&rdquo; in one of the
     comments about the tcap-query feature, which has been a
@@ -3159,7 +3227,8 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
         <li>it hooks into the double-buffering support if it is
         enabled (though this doesn't seem to get rid of all
         flicker).</li>
-      </ul>This has the effect of reducing flicker and speeding up
+      </ul>
+      This has the effect of reducing flicker and speeding up
       redraws.
     </li>
   </ul>
@@ -5281,8 +5350,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     for layout of the active icon's window (Debian #591265).</li>
   </ul>
 
-  <h1><a name="xterm_262" id="xterm_262">Patch #262 -
-  2010/8/30</a></h1>
+  <h1><a name="xterm_262" id="xterm_262">Patch #262 - 2010/8/30</a></h1>
 
   <ul>
     <li>fix a case where changing the cursor color via escape
@@ -5311,8 +5379,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     Debian</a>.</li>
   </ul>
 
-  <h1><a name="xterm_261" id="xterm_261">Patch #261 -
-  2010/6/28</a></h1>
+  <h1><a name="xterm_261" id="xterm_261">Patch #261 - 2010/6/28</a></h1>
 
   <ul>
     <li>fix regression in <code>renderFont</code> logic, from
@@ -5320,8 +5387,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     Quinsey).</li>
   </ul>
 
-  <h1><a name="xterm_260" id="xterm_260">Patch #260 -
-  2010/6/20</a></h1>
+  <h1><a name="xterm_260" id="xterm_260">Patch #260 - 2010/6/20</a></h1>
 
   <ul>
     <li>modify <code>plink.sh</code> to work around problem linking
@@ -5368,8 +5434,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     resource in manpage.</li>
   </ul>
 
-  <h1><a name="xterm_259" id="xterm_259">Patch #259 -
-  2010/6/5</a></h1>
+  <h1><a name="xterm_259" id="xterm_259">Patch #259 - 2010/6/5</a></h1>
 
   <ul>
     <li>modify configure check for <a href=
@@ -5411,8 +5476,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     been useful for various rebindings (Debian #580946).</li>
   </ul>
 
-  <h1><a name="xterm_258" id="xterm_258">Patch #258 -
-  2010/5/1</a></h1>
+  <h1><a name="xterm_258" id="xterm_258">Patch #258 - 2010/5/1</a></h1>
 
   <ul>
     <li>add pointer-checks in <code>ScrnRefresh</code> to fix a
@@ -5420,8 +5484,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     the scrollback FIFO.</li>
   </ul>
 
-  <h1><a name="xterm_257" id="xterm_257">Patch #257 -
-  2010/4/22</a></h1>
+  <h1><a name="xterm_257" id="xterm_257">Patch #257 - 2010/4/22</a></h1>
 
   <ul>
     <li>correct ctlseqs.ms description of OSC 17 and OSC 19 (patch
@@ -5489,8 +5552,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     defined (patch by Matthieu Herrb)</li>
   </ul>
 
-  <h1><a name="xterm_256" id="xterm_256">Patch #256 -
-  2010/3/6</a></h1>
+  <h1><a name="xterm_256" id="xterm_256">Patch #256 - 2010/3/6</a></h1>
 
   <ul>
     <li>add TerminalEmulator to desktop category files.</li>
@@ -5521,8 +5583,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     Adams).</li>
   </ul>
 
-  <h1><a name="xterm_255" id="xterm_255">Patch #255 -
-  2010/1/21</a></h1>
+  <h1><a name="xterm_255" id="xterm_255">Patch #255 - 2010/1/21</a></h1>
 
   <ul>
     <li>rename <code>install.sh</code> to <code>install-sh</code>
@@ -5545,8 +5606,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     <li>update config.guess, config.sub</li>
   </ul>
 
-  <h1><a name="xterm_254" id="xterm_254">Patch #254 -
-  2010/1/6</a></h1>
+  <h1><a name="xterm_254" id="xterm_254">Patch #254 - 2010/1/6</a></h1>
 
   <ul>
     <li>add a configure-check to eliminate <code>install-ti</code>
@@ -5644,8 +5704,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     #251</a> (Debian #560039).</li>
   </ul>
 
-  <h1><a name="xterm_252" id="xterm_252">Patch #252 -
-  2009/12/7</a></h1>
+  <h1><a name="xterm_252" id="xterm_252">Patch #252 - 2009/12/7</a></h1>
 
   <ul>
     <li>modify title-querying logic to support retrieval of titles
@@ -5791,8 +5850,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     #438850).</li>
   </ul>
 
-  <h1><a name="xterm_249" id="xterm_249">Patch #249 -
-  2009/10/1</a></h1>
+  <h1><a name="xterm_249" id="xterm_249">Patch #249 - 2009/10/1</a></h1>
 
   <ul>
     <li>change default for <code>allowWindowOps</code> resource to
@@ -5844,8 +5902,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     <a href="#xterm_244">patch #244</a>.</li>
   </ul>
 
-  <h1><a name="xterm_248" id="xterm_248">Patch #248 -
-  2009/9/11</a></h1>
+  <h1><a name="xterm_248" id="xterm_248">Patch #248 - 2009/9/11</a></h1>
 
   <ul>
     <li>fix an overlooked adjustment for selecting double-width
@@ -5864,8 +5921,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     #545220).</li>
   </ul>
 
-  <h1><a name="xterm_247" id="xterm_247">Patch #247 -
-  2009/8/30</a></h1>
+  <h1><a name="xterm_247" id="xterm_247">Patch #247 - 2009/8/30</a></h1>
 
   <ul>
     <li>add ifdef's and check for openpty() on DragonFly (patch by
@@ -5881,8 +5937,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     Gheorghioiu).</li>
   </ul>
 
-  <h1><a name="xterm_246" id="xterm_246">Patch #246 -
-  2009/8/16</a></h1>
+  <h1><a name="xterm_246" id="xterm_246">Patch #246 - 2009/8/16</a></h1>
 
   <ul>
     <li>remove obsolete logic for saving/restoring wrapping flags,
@@ -5922,8 +5977,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     by Rajeev V. Pillai).</li>
   </ul>
 
-  <h1><a name="xterm_245" id="xterm_245">Patch #245 -
-  2009/8/12</a></h1>
+  <h1><a name="xterm_245" id="xterm_245">Patch #245 - 2009/8/12</a></h1>
 
   <ul>
     <li>correct a special case in saving FIFO-lines from <a href=
@@ -5940,8 +5994,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     by Julien Cristau, Debian #531597).</li>
   </ul>
 
-  <h1><a name="xterm_244" id="xterm_244">Patch #244 -
-  2009/8/9</a></h1>
+  <h1><a name="xterm_244" id="xterm_244">Patch #244 - 2009/8/9</a></h1>
 
   <ul>
     <li>refactored storage of saved-lines, providing a configure
@@ -6028,8 +6081,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     #243</a> to make it only apply to the Tek Options menu.</li>
   </ul>
 
-  <h1><a name="xterm_243" id="xterm_243">Patch #243 -
-  2009/3/28</a></h1>
+  <h1><a name="xterm_243" id="xterm_243">Patch #243 - 2009/3/28</a></h1>
 
   <ul>
     <li>revert change to default for <code>allowTcapOps</code>
@@ -6085,8 +6137,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     values (Redhat Bugzilla #487829).</li>
   </ul>
 
-  <h1><a name="xterm_242" id="xterm_242">Patch #242 -
-  2009/2/15</a></h1>
+  <h1><a name="xterm_242" id="xterm_242">Patch #242 - 2009/2/15</a></h1>
 
   <ul>
     <li>fix configure check for <code>XkbBell</code> and provide
@@ -6132,8 +6183,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     <li>typo in #240 log (Slava Semushin)</li>
   </ul>
 
-  <h1><a name="xterm_241" id="xterm_241">Patch #241 -
-  2009/1/26</a></h1>
+  <h1><a name="xterm_241" id="xterm_241">Patch #241 - 2009/1/26</a></h1>
 
   <ul>
     <li>improve checks for missing bitmap fonts, fallback to
@@ -6145,8 +6195,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     Julien Cristau).</li>
   </ul>
 
-  <h1><a name="xterm_240" id="xterm_240">Patch #240 -
-  2009/1/25</a></h1>
+  <h1><a name="xterm_240" id="xterm_240">Patch #240 - 2009/1/25</a></h1>
 
   <ul>
     <li>use <code>plink.sh</code> for linking xterm (suggested by
@@ -6179,8 +6228,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     <li>update config.guess, config.sub</li>
   </ul>
 
-  <h1><a name="xterm_239" id="xterm_239">Patch #239 -
-  2009/1/8</a></h1>
+  <h1><a name="xterm_239" id="xterm_239">Patch #239 - 2009/1/8</a></h1>
 
   <ul>
     <li>correct a cast in input.c, which broke translation of
@@ -6631,8 +6679,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     while in a narrow-character locale (Debian #449227).</li>
   </ul>
 
-  <h1><a name="xterm_229" id="xterm_229">Patch #229 -
-  2007/8/12</a></h1>
+  <h1><a name="xterm_229" id="xterm_229">Patch #229 - 2007/8/12</a></h1>
 
   <ul>
     <li>override locale in minstall.sh; change in <a href=
@@ -6643,8 +6690,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     "#xterm_209">patch #209</a> (Debian #435858).</li>
   </ul>
 
-  <h1><a name="xterm_228" id="xterm_228">Patch #228 -
-  2007/7/22</a></h1>
+  <h1><a name="xterm_228" id="xterm_228">Patch #228 - 2007/7/22</a></h1>
 
   <ul>
     <li>modify configure script to permit combining
@@ -6703,8 +6749,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     <li>update config.guess, config.sub</li>
   </ul>
 
-  <h1><a name="xterm_227" id="xterm_227">Patch #227 -
-  2007/6/27</a></h1>
+  <h1><a name="xterm_227" id="xterm_227">Patch #227 - 2007/6/27</a></h1>
 
   <ul>
     <li>exclude the Intel compiler from the extra gcc warning
@@ -6719,8 +6764,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     <a href="#xterm_226">patch #226</a>.</li>
   </ul>
 
-  <h1><a name="xterm_226" id="xterm_226">Patch #226 -
-  2007/6/17</a></h1>
+  <h1><a name="xterm_226" id="xterm_226">Patch #226 - 2007/6/17</a></h1>
 
   <ul>
     <li>add configure check to use
@@ -6841,8 +6885,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     in some commonly-used bitmap fonts (Debian #418324).</li>
   </ul>
 
-  <h1><a name="xterm_225" id="xterm_225">Patch #225 -
-  2007/3/24</a></h1>
+  <h1><a name="xterm_225" id="xterm_225">Patch #225 - 2007/3/24</a></h1>
 
   <ul>
     <li>add <code>useClipping</code> resource to allow clipping to
@@ -6947,8 +6990,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     #193</a> (report by Thomas Wolff).</li>
   </ul>
 
-  <h1><a name="xterm_224" id="xterm_224">Patch #224 -
-  2007/2/11</a></h1>
+  <h1><a name="xterm_224" id="xterm_224">Patch #224 - 2007/2/11</a></h1>
 
   <ul>
     <li>simplify code for set/reset mode for blinking cursor (patch
@@ -7086,8 +7128,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     by Paul Schenkeveld)</li>
   </ul>
 
-  <h1><a name="xterm_221" id="xterm_221">Patch #221 -
-  2006/10/1</a></h1>
+  <h1><a name="xterm_221" id="xterm_221">Patch #221 - 2006/10/1</a></h1>
 
   <ul>
     <li>fix for regular expressions: the code which converted the
@@ -7111,16 +7152,14 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     6.1</li>
   </ul>
 
-  <h1><a name="xterm_220" id="xterm_220">Patch #220 -
-  2006/9/10</a></h1>
+  <h1><a name="xterm_220" id="xterm_220">Patch #220 - 2006/9/10</a></h1>
 
   <ul>
     <li>make "xterm -t -iconic" work as expected, i.e., start in
     tek4014 mode, but iconified.</li>
   </ul>
 
-  <h1><a name="xterm_219" id="xterm_219">Patch #219 -
-  2006/9/4</a></h1>
+  <h1><a name="xterm_219" id="xterm_219">Patch #219 - 2006/9/4</a></h1>
 
   <ul>
     <li>some internal restructuring to separate data for vt100 and
@@ -7130,8 +7169,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     vt100 widget when built with the toolbar configuration.</li>
   </ul>
 
-  <h1><a name="xterm_218" id="xterm_218">Patch #218 -
-  2006/8/27</a></h1>
+  <h1><a name="xterm_218" id="xterm_218">Patch #218 - 2006/8/27</a></h1>
 
   <ul>
     <li>change behavior when encountering an illegal character in a
@@ -7151,8 +7189,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     systems such as Solaris 2.6 (report by Julian Bridle).</li>
   </ul>
 
-  <h1><a name="xterm_217" id="xterm_217">Patch #217 -
-  2006/8/20</a></h1>
+  <h1><a name="xterm_217" id="xterm_217">Patch #217 - 2006/8/20</a></h1>
 
   <ul>
     <li>minor improvements to FreeType font layout and
@@ -7181,8 +7218,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     <a href="#xterm_216">patch #216</a>.</li>
   </ul>
 
-  <h1><a name="xterm_216" id="xterm_216">Patch #216 -
-  2006/8/3</a></h1>
+  <h1><a name="xterm_216" id="xterm_216">Patch #216 - 2006/8/3</a></h1>
 
   <ul>
     <li>improve handling of <code>ConfigureNotify</code> events by
@@ -9050,6 +9086,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     <li>modify <code>scroll-back</code> and
     <code>scroll-forw</code> actions to accept an adjustment value,
     e.g.,
+
       <pre>
               <code>scroll-back(1, page-2)</code>
 </pre>to scroll back by 2 lines less than a page (patch by Greg
@@ -11659,6 +11696,7 @@ Klanderman).
 
     <li>add support for DEC Locator control sequences for xterm
     (integrated patch by Stephen P Wall):
+
       <pre>
                 DECEFR, "Enable Filter Rectangle"
                 DECELR, "Enable Locator Reports"
@@ -12026,6 +12064,7 @@ Klanderman).
       <blockquote>
         <p>With this patch, selection conversion works
         properly:</p>
+
         <pre>
         ISO 8859-1 xterm -&gt; ISO 8859-1 xterm (transferred as STRING);
         ISO 8859-1 xterm -&gt; UTF-8 xterm (transferred as STRING);
@@ -12752,6 +12791,7 @@ Klanderman).
 
   <p>I tested the double-sized characters using vttest and the
   xfsft patch. These fonts worked reasonably well:</p>
+
   <pre>
         -bitstream-courier-medium-r-normal--0-0-0-0-m-0-iso8859-1
         9x15
@@ -13708,6 +13748,7 @@ Klanderman).
     <p>Setting the following resources xterm (all current versions)
     receives a segmentation fault on &lt;Btn2Up&gt; after
     scrolling:</p>
+
     <pre>
           *XTerm*VT100*translations:    #override \
               ~Shift~Ctrl&lt;Btn2Up&gt;: insert-selection(PRIMARY, CUT_BUFFER0)\n\
@@ -14277,6 +14318,7 @@ Klanderman).
 
   <p>Roland also complained that he couldn't use box characters
   with</p>
+
   <pre>
         -adobe-courier-bold-r-normal--12-120-75-75-m-70-iso8859-1
 </pre>
@@ -15026,6 +15068,7 @@ Klanderman).
 
   <p>At this point, I'm compiling (fairly) clean with gcc
   options</p>
+
   <pre>
         -Wall -Wstrict-prototypes -Wmissing-prototypes -Wshadow -Wnested-externs
 </pre>
@@ -15227,6 +15270,7 @@ Klanderman).
 
   <p>Briefly, this patch adds (and uses) two header files in the
   xterm directory:</p>
+
   <pre>
         proto.h
         xterm.h

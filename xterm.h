@@ -1,4 +1,4 @@
-/* $XTermId: xterm.h,v 1.836 2019/06/29 15:21:31 tom Exp $ */
+/* $XTermId: xterm.h,v 1.841 2019/07/19 22:35:06 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -43,25 +43,6 @@
 #ifdef HAVE_CONFIG_H
 #include <xtermcfg.h>
 #endif
-
-#ifndef GCC_PRINTFLIKE
-#define GCC_PRINTFLIKE(f,n)	/* nothing */
-#endif
-
-#ifndef GCC_UNUSED
-#define GCC_UNUSED		/* nothing */
-#endif
-
-#ifndef GCC_NORETURN
-#define GCC_NORETURN		/* nothing */
-#endif
-
-#if defined(__GNUC__) && defined(_FORTIFY_SOURCE)
-#define USE_IGNORE_RC
-#define IGNORE_RC(func) ignore_unused = (int) func
-#else
-#define IGNORE_RC(func) (void) func
-#endif /* gcc workarounds */
 
 #undef bcopy
 #include <X11/Xos.h>
@@ -244,6 +225,12 @@
 #define HAVE_X11_XF86KEYSYM_H 0
 #endif
 
+#if defined(HAVE_X11_EXTENSIONS_XDBE_H) && defined(HAVE_XDBESWAPBUFFERS)
+#define USE_DOUBLE_BUFFER 1
+#else
+#define USE_DOUBLE_BUFFER 0
+#endif
+
 /***====================================================================***/
 
 /* if compiling with gcc -ansi -pedantic, we must fix POSIX definitions */
@@ -317,6 +304,40 @@ extern int errno;
 
 #include <ptyx.h>
 
+/***====================================================================***/
+
+#ifndef GCC_PRINTFLIKE
+#ifdef _X_ATTRIBUTE_PRINTF
+#define GCC_PRINTFLIKE(f,n)	_X_ATTRIBUTE_PRINTF(f,n)
+#else
+#define GCC_PRINTFLIKE(f,n)	/* nothing */
+#endif
+#endif
+
+#ifndef GCC_UNUSED
+#ifdef _X_UNUSED
+#define GCC_UNUSED		_X_UNUSED
+#else
+#define GCC_UNUSED		/* nothing */
+#endif
+#endif
+
+#ifndef GCC_NORETURN
+#ifdef _X_NORETURN
+#define GCC_NORETURN		_X_NORETURN
+#else
+#define GCC_NORETURN		/* nothing */
+#endif
+#endif
+
+/***====================================================================***/
+
+#if defined(__GNUC__) && defined(_FORTIFY_SOURCE)
+#define USE_IGNORE_RC
+#define IGNORE_RC(func) ignore_unused = (int) func
+#else
+#define IGNORE_RC(func) (void) func
+#endif /* gcc workarounds */
 #if (XtSpecificationRelease >= 6) && !defined(NO_XPOLL_H) && !defined(sun)
 #include <X11/Xpoll.h>
 #define USE_XPOLL_H 1
@@ -936,12 +957,11 @@ extern void lookupSelectUnit(XtermWidget /* xw */, Cardinal /* item */, String /
 extern void releaseCursorGCs(XtermWidget /*xw*/);
 extern void releaseWindowGCs(XtermWidget /*xw*/, VTwin * /*win*/);
 extern void resetCharsets (TScreen * /* screen */);
+extern void resetMargins (XtermWidget /* xw */);
 extern void restoreCharsets (TScreen * /* screen */, DECNRCM_codes * /* source */);
 extern void saveCharsets (TScreen * /* screen */, DECNRCM_codes * /* target */);
 extern void set_max_col(TScreen *  /* screen */, int  /* cols */);
 extern void set_max_row(TScreen *  /* screen */, int  /* rows */);
-extern void set_lr_margins (TScreen * /* screen */, int  /* left */, int  /* right */);
-extern void set_tb_margins (TScreen * /* screen */, int  /* top */, int  /* bottom */);
 extern void unparse_end (XtermWidget /* xw */);
 extern void unparseputc (XtermWidget /* xw */, int  /* c */);
 extern void unparseputc1 (XtermWidget /* xw */, int  /* c */);
@@ -1159,7 +1179,7 @@ extern void HandleDabbrevExpand        PROTO_XT_ACTIONS_ARGS;
 extern int getDirectColor(XtermWidget /* xw */, int /* red */, int /* green */, int /* blue */);
 #endif /* OPT_DIRECT_COLOR */
 
-#if OPT_DOUBLE_BUFFER
+#if USE_DOUBLE_BUFFER
 extern void xtermFlushDbe(XtermWidget /* xw */);
 extern void xtermTimedDbe(XtermWidget /* xw */);
 #define xtermNeedSwap(xw,why)	TScreenOf(xw)->needSwap |= (why)
@@ -1167,7 +1187,7 @@ extern void xtermTimedDbe(XtermWidget /* xw */);
 #define xtermFlushDbe(xw)	/* nothing */
 #define xtermTimedDbe(xw)	/* nothing */
 #define xtermNeedSwap(xw,why)	/* nothing */
-#endif /* OPT_DOUBLE_BUFFER */
+#endif /* USE_DOUBLE_BUFFER */
 
 #if OPT_EXEC_XTERM
 extern char *ProcGetCWD(pid_t /* pid */);
@@ -1386,6 +1406,17 @@ extern void LineSetFlag(LineData /* ld */, int /* flag */);
 #define ScrnIsColInMargins(screen, col) \
 	((col) >= (screen)->lft_marg && (col) <= (screen)->rgt_marg)
 
+/*
+ * If the vertical scrolling margins are active, they will be something other
+ * than the first/last row of the visible screen, as well as being distinct.
+ */
+#define IsTopBottomMode(xw)	(ScrnTopMargin(xw) < ScrnBottomMargin(xw))
+#define ScrnTopMargin(xw)	TScreenOf(xw)->top_marg
+#define ScrnBottomMargin(xw)	TScreenOf(xw)->bot_marg
+
+/*
+ * Left/right horizontal scrolling margins are only active when DECLRMM is.
+ */
 #define IsLeftRightMode(xw) ((xw)->flags & LEFT_RIGHT)
 #define ScrnLeftMargin(xw)  (IsLeftRightMode(xw) \
 			     ? TScreenOf(xw)->lft_marg \
