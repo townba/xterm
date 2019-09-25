@@ -1,4 +1,4 @@
-/* $XTermId: util.c,v 1.803 2019/07/20 00:10:34 tom Exp $ */
+/* $XTermId: util.c,v 1.842 2019/09/21 00:46:41 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -1099,6 +1099,7 @@ void
 WriteText(XtermWidget xw, IChar *str, Cardinal len)
 {
     TScreen *screen = TScreenOf(xw);
+    XTermDraw params;
     CLineData *ld = 0;
     unsigned attr_flags = xw->flags;
     CellColor fg_bg = xtermColorPair(xw);
@@ -1170,14 +1171,19 @@ WriteText(XtermWidget xw, IChar *str, Cardinal len)
 	/* make sure that the correct GC is current */
 	currentGC = updatedXtermGC(xw, attr_flags, fg_bg, False);
 
-	drawXtermText(xw,
-		      test & DRAWX_MASK,
-		      0,
+	/* *INDENT-EQLS* */
+	params.xw          = xw;
+	params.attr_flags  = (test & DRAWX_MASK);
+	params.draw_flags  = 0;
+	params.this_chrset = LineCharSet(screen, ld);
+	params.real_chrset = CSET_SWL;
+	params.on_wide     = 0;
+
+	drawXtermText(&params,
 		      currentGC,
 		      LineCursorX(screen, ld, screen->cur_col),
 		      CursorY(screen, screen->cur_row),
-		      LineCharSet(screen, ld),
-		      str, len, 0);
+		      str, len);
 
 	resetXtermGC(xw, attr_flags, False);
     }
@@ -2884,7 +2890,7 @@ getXftColor(XtermWidget xw, Pixel pixel)
 
 #endif /* OPT_RENDERWIDE */
 
-#define XFT_FONT(which) getXftFont(xw, which, fontnum)
+#define XFT_FONT(which) getXftFont(params->xw, which, fontnum)
 
 #if OPT_ISO_COLORS
 #define UseBoldFont(screen) (!(screen)->colorBDMode || ((screen)->veryBoldColors & BOLD))
@@ -2893,21 +2899,33 @@ getXftColor(XtermWidget xw, Pixel pixel)
 #endif
 
 #if OPT_RENDERWIDE
+/*
+ * Find Xft (truetype) double-width font for the given normal/bold attributes.
+ */
 static XftFont *
-getWideXftFont(XtermWidget xw,
+getWideXftFont(XTermDraw * params,
 	       unsigned attr_flags)
 {
-    TScreen *screen = TScreenOf(xw);
+    TScreen *screen = TScreenOf(params->xw);
     int fontnum = screen->menu_font_number;
-    XftFont *wfont;
+    XftFont *wfont = 0;
 
 #if OPT_WIDE_ATTRS
     if ((attr_flags & ATR_ITALIC)
 #if OPT_ISO_COLORS
 	&& !screen->colorITMode
 #endif
-	&& XFT_FONT(fWItal)) {
-	wfont = XFT_FONT(fWItal);
+	) {
+	if ((attr_flags & BOLDATTR(screen))
+	    && UseBoldFont(screen)
+	    && XFT_FONT(fWBtal)) {
+	    wfont = XFT_FONT(fWBtal);
+	} else if (XFT_FONT(fWItal)) {
+	    wfont = XFT_FONT(fWItal);
+	}
+    }
+    if (wfont != 0) {
+	;	/* skip the other tests */
     } else
 #endif
 #if OPT_ISO_COLORS
@@ -2929,23 +2947,45 @@ getWideXftFont(XtermWidget xw,
 }
 #endif /* OPT_RENDERWIDE */
 
+/*
+ * Find Xft (truetype) single-width font for the given normal/bold attributes.
+ */
 static XftFont *
-getNormXftFont(XtermWidget xw,
+getNormXftFont(XTermDraw * params,
 	       unsigned attr_flags,
 	       Bool *did_ul)
 {
-    TScreen *screen = TScreenOf(xw);
+    TScreen *screen = TScreenOf(params->xw);
     int fontnum = screen->menu_font_number;
     XftFont *font;
 
     (void) did_ul;
-#if OPT_WIDE_ATTRS
-    if ((attr_flags & ATR_ITALIC)
-#if OPT_ISO_COLORS
-	&& !screen->colorITMode
+#if OPT_DEC_CHRSET
+    if (CSET_DOUBLE(params->real_chrset)) {
+	font = xterm_DoubleFT(params, params->real_chrset, attr_flags);
+    } else {
+	font = 0;
+    }
+    if (font != 0) {
+	;			/* found a usable double-sized font */
+    } else
 #endif
-	&& XFT_FONT(fItal)) {
-	font = XFT_FONT(fItal);
+#if OPT_WIDE_ATTRS
+	if ((attr_flags & ATR_ITALIC)
+#if OPT_ISO_COLORS
+	    && !screen->colorITMode
+#endif
+	) {
+	if ((attr_flags & BOLDATTR(screen))
+	    && UseBoldFont(screen)
+	    && XFT_FONT(fBtal)) {
+	    font = XFT_FONT(fBtal);
+	} else if (XFT_FONT(fItal)) {
+	    font = XFT_FONT(fItal);
+	}
+    }
+    if (font != 0) {
+	;	/* skip the other tests */
     } else
 #endif
 #if OPT_ISO_COLORS
@@ -2984,7 +3024,7 @@ getNormXftFont(XtermWidget xw,
  * See http://bugzilla.mozilla.org/show_bug.cgi?id=196312
  */
 static int
-xtermXftDrawString(XtermWidget xw,
+xtermXftDrawString(XTermDraw * params,
 		   unsigned attr_flags GCC_UNUSED,
 		   XftColor *color,
 		   XftFont *font,
@@ -2994,27 +3034,32 @@ xtermXftDrawString(XtermWidget xw,
 		   Cardinal len,
 		   Bool really)
 {
-    TScreen *screen = TScreenOf(xw);
+    TScreen *screen = TScreenOf(params->xw);
     int ncells = 0;
 
     if (len != 0) {
 #if OPT_RENDERWIDE
 	XftCharSpec *sbuf;
-	XftFont *wfont = getWideXftFont(xw, attr_flags);
+	XftFont *wfont = getWideXftFont(params, attr_flags);
 	Cardinal src, dst;
 	XftFont *lastFont = 0;
 	XftFont *currFont = 0;
 	Cardinal start = 0;
 	int charWidth;
 	int fwidth = FontWidth(screen);
+#if OPT_DEC_CHRSET
+	Boolean forceDbl = CSET_DOUBLE(params->real_chrset);
+#else
+	Boolean forceDbl = False;
+#endif
 
-	BumpTypedBuffer(XftCharSpec, len);
+	BumpTypedBuffer(XftCharSpec, 2 * len);
 	sbuf = BfBuf(XftCharSpec);
 
 	for (src = dst = 0; src < len; src++) {
 	    FcChar32 wc = *text++;
 
-	    charWidth = XtermCellWidth(xw, (wchar_t) wc);
+	    charWidth = XtermCellWidth(params->xw, (wchar_t) wc);
 	    if (charWidth < 0)
 		continue;
 
@@ -3037,6 +3082,14 @@ xtermXftDrawString(XtermWidget xw,
 		lastFont = currFont;
 	    }
 	    ++dst;
+
+	    if (forceDbl && charWidth < 2) {
+		sbuf[dst].ucs4 = ' ';
+		sbuf[dst].x = (short) (x + fwidth * ncells);
+		sbuf[dst].y = (short) (y);
+		++dst;
+		ncells += charWidth;
+	    }
 	}
 	if ((dst != start) && really) {
 	    XftDrawCharSpec(screen->renderDraw,
@@ -3063,12 +3116,12 @@ xtermXftDrawString(XtermWidget xw,
 	}
 	ncells = (int) len;
 #endif
-	xtermNeedSwap(xw, 1);
+	xtermNeedSwap(params->xw, 1);
     }
     return ncells;
 }
-#define xtermXftWidth(xw, attr_flags, color, font, x, y, chars, len) \
-   xtermXftDrawString(xw, attr_flags, color, font, x, y, chars, len, False)
+#define xtermXftWidth(params, attr_flags, color, font, x, y, chars, len) \
+   xtermXftDrawString(params, attr_flags, color, font, x, y, chars, len, False)
 #endif /* OPT_RENDERFONT */
 
 #if OPT_WIDE_CHARS
@@ -3123,17 +3176,13 @@ AsciiEquivs(unsigned ch)
  */
 #if OPT_BOX_CHARS
 static int
-ucs_workaround(XtermWidget xw,
+ucs_workaround(XTermDraw * params,
 	       unsigned ch,
-	       unsigned attr_flags,
-	       unsigned draw_flags,
 	       GC gc,
 	       int x,
-	       int y,
-	       int chrset,
-	       int on_wide)
+	       int y)
 {
-    TScreen *screen = TScreenOf(xw);
+    TScreen *screen = TScreenOf(params->xw);
     int fixed = False;
 
     if (screen->wide_chars && screen->utf8_mode && ch > 256) {
@@ -3143,18 +3192,14 @@ ucs_workaround(XtermWidget xw,
 	    int width = CharWidth(ch);
 
 	    do {
-		drawXtermText(xw,
-			      attr_flags,
-			      draw_flags,
+		drawXtermText(params,
 			      gc,
 			      x,
 			      y,
-			      chrset,
 			      &eqv,
-			      1,
-			      on_wide);
+			      1);
 		x += FontWidth(screen);
-		eqv = '?';
+		eqv = BAD_ASCII;
 	    } while (width-- > 1);
 
 	    fixed = True;
@@ -3177,21 +3222,20 @@ ucs_workaround(XtermWidget xw,
  * a special GC for that.
  */
 static void
-xtermFillCells(XtermWidget xw,
-	       unsigned draw_flags,
+xtermFillCells(XTermDraw * params,
 	       GC gc,
 	       int x,
 	       int y,
 	       Cardinal len)
 {
-    TScreen *screen = TScreenOf(xw);
+    TScreen *screen = TScreenOf(params->xw);
     VTwin *currentWin = WhichVWin(screen);
 
-    if (!(draw_flags & NOBACKGROUND)) {
-	CgsEnum srcId = getCgsId(xw, currentWin, gc);
+    if (!(params->draw_flags & NOBACKGROUND)) {
+	CgsEnum srcId = getCgsId(params->xw, currentWin, gc);
 	CgsEnum dstId = gcMAX;
-	Pixel fg = getCgsFore(xw, currentWin, gc);
-	Pixel bg = getCgsBack(xw, currentWin, gc);
+	Pixel fg = getCgsFore(params->xw, currentWin, gc);
+	Pixel bg = getCgsBack(params->xw, currentWin, gc);
 
 	switch (srcId) {
 	case gcVTcursNormal:
@@ -3252,11 +3296,11 @@ xtermFillCells(XtermWidget xw,
 	}
 
 	if (dstId != gcMAX) {
-	    setCgsFore(xw, currentWin, dstId, bg);
-	    setCgsBack(xw, currentWin, dstId, fg);
+	    setCgsFore(params->xw, currentWin, dstId, bg);
+	    setCgsBack(params->xw, currentWin, dstId, fg);
 
 	    XFillRectangle(screen->display, VDrawable(screen),
-			   getCgsGC(xw, currentWin, dstId),
+			   getCgsGC(params->xw, currentWin, dstId),
 			   x, y,
 			   len * (Cardinal) FontWidth(screen),
 			   (unsigned) FontHeight(screen));
@@ -3334,44 +3378,9 @@ xtermSetClipRectangles(Display *dpy,
 #define endClipping(screen,gc)	/* nothing */
 #endif /* OPT_CLIP_BOLD */
 
-#if OPT_CLIP_BOLD && OPT_RENDERFONT && defined(HAVE_XFTDRAWSETCLIP) && defined(HAVE_XFTDRAWSETCLIPRECTANGLES)
-#define beginXftClipping(screen,px,py,plength) \
-	if (FontWidth(screen) > 2) { \
-	    if (screen->use_clipping) { \
-		XRectangle clip; \
-		double adds = (screen->scale_height - 1.0) * FontHeight(screen); \
-		int height = dimRound(adds + FontHeight(screen)); \
-		int descnt = dimRound(adds / 2.0) + FontDescent(screen); \
-		int clip_x = (px); \
-		int clip_y = (py) - height + descnt; \
-		clip.x = 0; \
-		clip.y = 0; \
-		clip.height = (unsigned short) height; \
-		clip.width = (unsigned short) (FontWidth(screen) * (plength)); \
-		XftDrawSetClipRectangles (screen->renderDraw, \
-					  clip_x, clip_y, \
-					  &clip, 1); \
-	    } else if (screen->use_border_clipping) { \
-		XRectangle clip; \
-		clip.x = (short) OriginX(screen); \
-		clip.y = (short) OriginY(screen); \
-		clip.height = (unsigned short) Height(screen); \
-		clip.width = (unsigned short) Width(screen); \
-		XftDrawSetClipRectangles (screen->renderDraw, \
-					  0, 0, \
-					  &clip, 1); \
-	    } \
-	}
-#define endXftClipping(screen) \
-	    XftDrawSetClip (screen->renderDraw, 0)
-#else
-#define beginXftClipping(screen,px,py,plength)	/* nothing */
-#define endXftClipping(screen)	/* nothing */
-#endif /* OPT_CLIP_BOLD */
-
 #if OPT_RENDERFONT
 static int
-drawClippedXftString(XtermWidget xw,
+drawClippedXftString(XTermDraw * params,
 		     unsigned attr_flags,
 		     XftFont *font,
 		     XftColor *fg_color,
@@ -3380,21 +3389,121 @@ drawClippedXftString(XtermWidget xw,
 		     const IChar *text,
 		     Cardinal len)
 {
-    int ncells = xtermXftWidth(xw, attr_flags,
+    int ncells = xtermXftWidth(params, attr_flags,
 			       fg_color,
 			       font, x, y,
 			       text,
 			       len);
-    TScreen *screen = TScreenOf(xw);
+    TScreen *screen = TScreenOf(params->xw);
+    int fontHigh = FontHeight(screen);
+    int fontWide = FontWidth(screen);
 
-    beginXftClipping(screen, x, y, ncells ? ncells : 1);
-    xtermXftDrawString(xw, attr_flags,
+    if (fontWide > 2) {
+	int plength = (ncells ? ncells : 1);
+#if OPT_DEC_CHRSET
+	Boolean halfHigh = False;
+	Boolean halfWide = False;
+
+	switch (params->real_chrset) {
+	case CSET_SWL:
+	    break;
+	case CSET_DWL:
+	    halfWide = True;
+	    break;
+	case CSET_DHL_TOP:
+	    halfHigh = True;
+	    halfWide = True;
+	    break;
+	case CSET_DHL_BOT:
+	    halfHigh = True;
+	    halfWide = True;
+	    break;
+	}
+	if (CSET_DOUBLE(params->real_chrset)) {
+	    fontHigh = font->height;
+	    fontWide = font->max_advance_width;
+	    /* check if this is really a double-height font */
+	    if (halfHigh) {
+		int wantHigh = (int) (FontHeight(screen) * 1.8);
+		halfHigh = (fontHigh >= wantHigh);
+		TRACE(("comparing fontHigh %d/%d vs %d:"
+		       " double-height %s for %s\n",
+		       fontHigh, FontHeight(screen),
+		       wantHigh, BtoS(halfHigh),
+		       visibleDblChrset(params->real_chrset)));
+	    }
+	    fontHigh = (halfHigh
+			? (2 * FontHeight(screen))
+			: FontHeight(screen));
+	    /* check if this is really a double-width font */
+	    if (halfWide) {
+		int wantWide = (int) (FontWidth(screen) * 1.8);
+		halfHigh = (fontWide >= wantWide);
+		TRACE(("comparing fontWide %d/%d vs %d:"
+		       " double-width %s for %s\n",
+		       fontWide, FontWidth(screen),
+		       wantWide, BtoS(halfWide),
+		       visibleDblChrset(params->real_chrset)));
+	    }
+	    fontWide = (halfWide
+			? (2 * FontWidth(screen))
+			: FontWidth(screen));
+	}
+#endif
+	if (screen->use_clipping || halfHigh) {
+	    XRectangle clip;
+	    double adds = (screen->scale_height - 1.0) * fontHigh;
+	    int height = dimRound(adds + fontHigh);
+	    int descnt = dimRound(adds / 2.0) + FontDescent(screen);
+	    int clip_x = (x);
+	    int clip_y = (y) - height + descnt;
+
+	    clip.x = 0;
+	    clip.y = 0;
+	    clip.height = (Dimension) height;
+	    clip.width = (Dimension) (fontWide * (Dimension) (plength));
+
+#if OPT_DEC_CHRSET
+	    if (halfHigh) {
+		int adjust;
+
+		clip.height = (unsigned short) FontHeight(screen);
+		clip_y += descnt;
+		if (params->real_chrset == CSET_DHL_BOT) {
+		    y -= clip.height;
+		}
+		adjust = ((clip_y - OriginY(screen)) % FontHeight(screen));
+		if (adjust) {
+		    if (adjust > FontHeight(screen) / 2)
+			adjust -= FontHeight(screen);
+		    clip_y -= adjust;
+		}
+	    }
+#endif
+	    XftDrawSetClipRectangles(screen->renderDraw,
+				     clip_x, clip_y,
+				     &clip, 1);
+	} else if (screen->use_border_clipping) {
+	    XRectangle clip;
+
+	    clip.x = (Position) OriginX(screen);
+	    clip.y = (Position) OriginY(screen);
+	    clip.height = (Dimension) Height(screen);
+	    clip.width = (Dimension) Width(screen);
+
+	    XftDrawSetClipRectangles(screen->renderDraw,
+				     0, 0,
+				     &clip, 1);
+	}
+    }
+
+    xtermXftDrawString(params, attr_flags,
 		       fg_color,
 		       font, x, y,
 		       text,
 		       len,
 		       True);
-    endXftClipping(screen);
+    XftDrawSetClip(screen->renderDraw, 0);
     return ncells;
 }
 #endif
@@ -3460,18 +3569,17 @@ drawUnderline(XtermWidget xw,
  * Or they may be larger, requiring clipping.  Check for both cases.
  */
 static int
-fixupItalics(XtermWidget xw,
-	     unsigned draw_flags,
+fixupItalics(XTermDraw * params,
 	     GC gc,
 	     XTermFonts * curFont,
 	     int y, int x,
 	     int font_width,
 	     Cardinal len)
 {
-    TScreen *screen = TScreenOf(xw);
+    TScreen *screen = TScreenOf(params->xw);
     VTwin *cgsWin = WhichVWin(screen);
     XFontStruct *realFp = curFont->fs;
-    XFontStruct *thisFp = getCgsFont(xw, cgsWin, gc)->fs;
+    XFontStruct *thisFp = getCgsFont(params->xw, cgsWin, gc)->fs;
     int need_clipping = 0;
     int need_filling = 0;
 
@@ -3489,8 +3597,7 @@ fixupItalics(XtermWidget xw,
 	beginClipping(screen, gc, font_width, (int) len);
     }
     if (need_filling) {
-	xtermFillCells(xw,
-		       draw_flags,
+	xtermFillCells(params,
 		       gc,
 		       x,
 		       y - realFp->ascent,
@@ -3499,6 +3606,39 @@ fixupItalics(XtermWidget xw,
     return need_clipping;
 }
 #endif
+
+#if OPT_DEC_CHRSET
+static int
+fakeDoubleChars(XTermDraw * params,
+		GC gc,
+		int y,
+		int x,
+		const IChar *text,
+		Cardinal len)
+{
+    unsigned need = 2 * len;
+    IChar *temp = TypeMallocN(IChar, need);
+
+    if (temp != 0) {
+	unsigned n = 0;
+	XTermDraw recur = *params;
+
+	recur.this_chrset = CSET_SWL;
+
+	while (len--) {
+	    temp[n++] = *text++;
+	    temp[n++] = ' ';
+	}
+	x = drawXtermText(&recur,
+			  gc,
+			  x, y,
+			  temp,
+			  n);
+	free(temp);
+    }
+    return x;
+}
+#endif /* OPT_DEC_CHRSET */
 
 #define SetMissing(tag) \
 	TRACE(("%s %s: missing %d %04X\n", __FILE__, tag, missing, ch)); \
@@ -3509,24 +3649,23 @@ fixupItalics(XtermWidget xw,
  * value is the updated x position.
  */
 int
-drawXtermText(XtermWidget xw,
-	      unsigned attr_flags,
-	      unsigned draw_flags,
+drawXtermText(XTermDraw * params,
 	      GC gc,
 	      int start_x,
 	      int start_y,
-	      int chrset,
 	      const IChar *text,
-	      Cardinal len,
-	      int on_wide)
+	      Cardinal len)
 {
-    int x = start_x, y = start_y;
-    TScreen *screen = TScreenOf(xw);
+    XTermDraw recur = *params;
+    int x = start_x;
+    int y = start_y;
+    TScreen *screen = TScreenOf(recur.xw);
     Cardinal real_length = len;
     Cardinal underline_len = 0;
     /* Intended width of the font to draw (as opposed to the actual width of
        the X font, and the width of the default font) */
-    int font_width = ((draw_flags & DOUBLEWFONT) ? 2 : 1) * screen->fnt_wide;
+    int font_width = (((recur.draw_flags & DOUBLEWFONT) ? 2 : 1)
+		      * screen->fnt_wide);
     Bool did_ul = False;
     XTermFonts *curFont;
 #if OPT_WIDE_ATTRS
@@ -3538,68 +3677,78 @@ drawXtermText(XtermWidget xw,
 	return 0;
 #endif
 #if OPT_DEC_CHRSET
-    if (CSET_DOUBLE(chrset)) {
+    if (CSET_DOUBLE(recur.this_chrset)) {
 	/* We could try drawing double-size characters in the icon, but
 	 * given that the icon font is usually nil or nil2, there
 	 * doesn't seem to be much point.
 	 */
 	int inx = 0;
-	GC gc2 = ((!IsIcon(screen) && screen->font_doublesize)
-		  ? xterm_DoubleGC(xw, (unsigned) chrset,
-				   attr_flags,
-				   draw_flags,
-				   gc, &inx)
-		  : 0);
+	GC gc2;
 
 	TRACE(("DRAWTEXT%c[%4d,%4d] (%d)%3d:%s\n",
 	       screen->cursor_state == OFF ? ' ' : '*',
-	       y, x, chrset, len,
+	       y, x, recur.this_chrset, len,
 	       visibleIChars(text, len)));
 
-	if (gc2 != 0) {		/* draw actual double-sized characters */
-	    XFontStruct *fs = getDoubleFont(screen, inx)->fs;
-
 #if OPT_RENDERFONT
-	    if (!UsingRenderFont(xw))
+	if (UsingRenderFont(recur.xw)) {
+	    if (!IsIcon(screen) && screen->font_doublesize) {
+		TRACE(("drawing %s\n", visibleDblChrset((unsigned) recur.this_chrset)));
+		recur.real_chrset = recur.this_chrset;
+		recur.this_chrset = CSET_SWL;
+		x = drawXtermText(&recur,
+				  gc,
+				  x, y,
+				  text,
+				  len);
+		x += ((int) len) * FontWidth(screen);
+	    } else {
+		x = fakeDoubleChars(&recur,
+				    gc, y, x,
+				    text, len);
+	    }
+	} else
 #endif
-	    {
-		XRectangle rect, *rp = &rect;
-		Cardinal nr = 1;
+	    if ((!IsIcon(screen) && screen->font_doublesize)
+		&& (gc2 = xterm_DoubleGC(&recur, gc, &inx)) != 0) {
+	    /* draw actual double-sized characters */
+	    XFontStruct *fs = getDoubleFont(screen, inx)->fs;
+	    XRectangle rect, *rp = &rect;
+	    Cardinal nr = 1;
 
-		font_width *= 2;
-		draw_flags |= DOUBLEWFONT;
+	    font_width *= 2;
+	    recur.draw_flags |= DOUBLEWFONT;
 
-		rect.x = 0;
-		rect.y = 0;
-		rect.width = (unsigned short) ((int) len * font_width);
-		rect.height = (unsigned short) (FontHeight(screen));
+	    rect.x = 0;
+	    rect.y = 0;
+	    rect.width = (unsigned short) ((int) len * font_width);
+	    rect.height = (unsigned short) (FontHeight(screen));
 
-		TRACE(("drawing %s\n", visibleDblChrset((unsigned) chrset)));
-		switch (chrset) {
-		case CSET_DHL_TOP:
-		    rect.y = (short) -(fs->ascent / 2);
-		    y -= rect.y;
-		    draw_flags |= DOUBLEHFONT;
-		    break;
-		case CSET_DHL_BOT:
-		    rect.y = (short) (rect.height - (fs->ascent / 2));
-		    y -= rect.y;
-		    draw_flags |= DOUBLEHFONT;
-		    break;
-		case CSET_DWL:
-		    break;
-		default:
-		    nr = 0;
-		    break;
-		}
+	    TRACE(("drawing %s\n", visibleDblChrset((unsigned) recur.this_chrset)));
+	    switch (recur.this_chrset) {
+	    case CSET_DHL_TOP:
+		rect.y = (short) -(fs->ascent / 2);
+		y -= rect.y;
+		recur.draw_flags |= DOUBLEHFONT;
+		break;
+	    case CSET_DHL_BOT:
+		rect.y = (short) (rect.height - (fs->ascent / 2));
+		y -= rect.y;
+		recur.draw_flags |= DOUBLEHFONT;
+		break;
+	    case CSET_DWL:
+		break;
+	    default:
+		nr = 0;
+		break;
+	    }
 
-		if (nr) {
-		    xtermSetClipRectangles(screen->display, gc2,
-					   x, y, rp, nr, YXBanded);
-		    xtermFillCells(xw, draw_flags, gc, x, y + rect.y, len * 2);
-		} else {
-		    XSetClipMask(screen->display, gc2, None);
-		}
+	    if (nr) {
+		xtermSetClipRectangles(screen->display, gc2,
+				       x, y, rp, nr, YXBanded);
+		xtermFillCells(&recur, gc, x, y + rect.y, len * 2);
+	    } else {
+		XSetClipMask(screen->display, gc2, None);
 	    }
 
 	    /* Call ourselves recursively with the new gc */
@@ -3616,63 +3765,62 @@ drawXtermText(XtermWidget xw,
 		   branch: in a lot of places the check
 		   for the cached font info is for
 		   normal/bold fonts only. */
+		XTermDraw param2 = recur;
+		param2.this_chrset = CSET_SWL;
 		while (len--) {
-		    x = drawXtermText(xw,
-				      attr_flags,
-				      draw_flags,
+		    x = drawXtermText(&param2,
 				      gc2,
-				      x, y, 0,
+				      x, y,
 				      text++,
-				      1, on_wide);
+				      1);
 		    x += FontWidth(screen);
 		}
 	    } else {
-		x = drawXtermText(xw,
-				  attr_flags,
-				  draw_flags,
+		XTermDraw param2 = recur;
+		param2.this_chrset = CSET_SWL;
+		x = drawXtermText(&param2,
 				  gc2,
-				  x, y, 0,
+				  x, y,
 				  text,
-				  len, on_wide);
+				  len);
 		x += (int) len *FontWidth(screen);
 	    }
 
 	} else {		/* simulate double-sized characters */
-	    unsigned need = 2 * len;
-	    IChar *temp = TypeMallocN(IChar, need);
-
-	    if (temp != 0) {
-		unsigned n = 0;
-
-		while (len--) {
-		    temp[n++] = *text++;
-		    temp[n++] = ' ';
-		}
-		x = drawXtermText(xw,
-				  attr_flags,
-				  draw_flags,
-				  gc,
-				  x, y,
-				  0,
-				  temp,
-				  n,
-				  on_wide);
-		free(temp);
-	    }
+	    x = fakeDoubleChars(&recur,
+				gc, y, x,
+				text, len);
 	}
 	TRACE(("DrewText [%4d,%4d]\n", y, x));
 	return x;
     }
 #endif
 #if OPT_RENDERFONT
-    if (UsingRenderFont(xw)) {
+    if (UsingRenderFont(recur.xw)) {
 	VTwin *currentWin = WhichVWin(screen);
 	Display *dpy = screen->display;
-	XftFont *font, *font0;
+	XftFont *font;
+	XftFont *font0;
 	XGCValues values;
 #if OPT_RENDERWIDE
-	XftFont *wfont, *wfont0;
+	XftFont *wfont;
+	XftFont *wfont0;
 #endif
+
+#if OPT_DEC_CHRSET
+	/*
+	 * If this is a VT100-style double-width font, ensure that everything
+	 * is printed using two-columns per character.
+	 */
+	Boolean forceDbl = CSET_DOUBLE(recur.real_chrset);
+#else
+	Boolean forceDbl = False;
+#endif
+
+	(void) forceDbl;
+	/*
+	 * Defer creating the drawable until we need it.
+	 */
 	if (!screen->renderDraw) {
 	    int scr;
 	    Drawable draw = VDrawable(screen);
@@ -3683,21 +3831,30 @@ drawXtermText(XtermWidget xw,
 	    screen->renderDraw = XftDrawCreate(dpy, draw, visual,
 					       DefaultColormap(dpy, scr));
 	}
-#define IS_BOLD  (attr_flags & BOLDATTR(screen))
-#define NOT_BOLD (attr_flags & ~BOLDATTR(screen))
-	font = getNormXftFont(xw, attr_flags, &did_ul);
-	font0 = IS_BOLD ? getNormXftFont(xw, NOT_BOLD, &did_ul) : font;
+
+	/*
+	 * font0/wfont0 provide fallback to non-bolded Xft font if a glyph is
+	 * not found in the bold version.
+	 */
+#define IS_BOLD  (recur.attr_flags & BOLDATTR(screen))
+#define NOT_BOLD (recur.attr_flags & ~BOLDATTR(screen))
+	font = getNormXftFont(&recur, recur.attr_flags, &did_ul);
+	font0 = IS_BOLD ? getNormXftFont(&recur, NOT_BOLD, &did_ul) : font;
 	(void) font0;
 #if OPT_RENDERWIDE
-	wfont = getWideXftFont(xw, attr_flags);
-	wfont0 = IS_BOLD ? getWideXftFont(xw, NOT_BOLD) : wfont;
+	wfont = getWideXftFont(&recur, recur.attr_flags);
+	wfont0 = IS_BOLD ? getWideXftFont(&recur, NOT_BOLD) : wfont;
 #endif
-	values.foreground = getCgsFore(xw, currentWin, gc);
-	values.background = getCgsBack(xw, currentWin, gc);
 
-	if (!(draw_flags & NOBACKGROUND)) {
-	    XftColor *bg_color = getXftColor(xw, values.background);
-	    int ncells = xtermXftWidth(xw, attr_flags,
+#define GET_XFT_FG() getXftColor(recur.xw, values.foreground)
+#define GET_XFT_BG() getXftColor(recur.xw, values.background)
+
+	values.foreground = getCgsFore(recur.xw, currentWin, gc);
+	values.background = getCgsBack(recur.xw, currentWin, gc);
+
+	if (!(recur.draw_flags & NOBACKGROUND)) {
+	    XftColor *bg_color = GET_XFT_BG();
+	    int ncells = xtermXftWidth(&recur, recur.attr_flags,
 				       bg_color,
 				       font, x, y,
 				       text,
@@ -3723,7 +3880,7 @@ drawXtermText(XtermWidget xw,
 		unsigned ch = (unsigned) text[last];
 		int filler = 0;
 #if OPT_WIDE_CHARS
-		int needed = CharWidth(ch);
+		int needed = forceDbl ? 2 : CharWidth(ch);
 		XftFont *currFont = pickXftFont(needed, font, wfont);
 		XftFont *tempFont = 0;
 #define CURR_TEMP (tempFont ? tempFont : currFont)
@@ -3738,7 +3895,9 @@ drawXtermText(XtermWidget xw,
 		     */
 		    if (screen->force_box_chars
 			|| screen->broken_box_chars
-			|| xtermXftMissing(xw, currFont, dec2ucs(screen, ch))) {
+			|| xtermXftMissing(recur.xw,
+					   currFont,
+					   dec2ucs(screen, ch))) {
 			SetMissing("case 1");
 		    } else {
 			ch = dec2ucs(screen, ch);
@@ -3759,11 +3918,11 @@ drawXtermText(XtermWidget xw,
 				ch = part;
 			    }
 			}
-			if (!missing && xtermXftMissing(xw, currFont, ch)) {
-			    XftFont *test = findXftGlyph(xw, currFont, ch);
+			if (!missing && xtermXftMissing(recur.xw, currFont, ch)) {
+			    XftFont *test = findXftGlyph(recur.xw, currFont, ch);
 			    if (test == 0)
 				test = pickXftFont(needed, font0, wfont0);
-			    if (!xtermXftMissing(xw, test, ch)) {
+			    if (!xtermXftMissing(recur.xw, test, ch)) {
 				tempFont = test;
 				replace = True;
 				filler = 0;
@@ -3788,7 +3947,7 @@ drawXtermText(XtermWidget xw,
 		     * Unicode position.  Failing that, use our own
 		     * box-characters.
 		     */
-		    if (xtermXftMissing(xw, currFont, ch)) {
+		    if (xtermXftMissing(recur.xw, currFont, ch)) {
 			SetMissing("case 4");
 		    }
 		}
@@ -3800,10 +3959,10 @@ drawXtermText(XtermWidget xw,
 		if (missing || replace) {
 		    /* line drawing character time */
 		    if (last > first) {
-			int nc = drawClippedXftString(xw,
-						      attr_flags,
+			int nc = drawClippedXftString(&recur,
+						      recur.attr_flags,
 						      currFont,
-						      getXftColor(xw, values.foreground),
+						      GET_XFT_FG(),
 						      curX,
 						      y,
 						      text + first,
@@ -3816,9 +3975,7 @@ drawXtermText(XtermWidget xw,
 			old_high = screen->fnt_high;
 			screen->fnt_wide = (Dimension) FontWidth(screen);
 			screen->fnt_high = (Dimension) FontHeight(screen);
-			xtermDrawBoxChar(xw, ch,
-					 attr_flags,
-					 draw_flags,
+			xtermDrawBoxChar(&recur, ch,
 					 gc,
 					 curX, y - FontAscent(screen), 1);
 			curX += FontWidth(screen);
@@ -3827,10 +3984,10 @@ drawXtermText(XtermWidget xw,
 			screen->fnt_high = old_high;
 		    } else {
 			IChar ch2 = (IChar) ch;
-			int nc = drawClippedXftString(xw,
-						      attr_flags,
+			int nc = drawClippedXftString(&recur,
+						      recur.attr_flags,
 						      CURR_TEMP,
-						      getXftColor(xw, values.foreground),
+						      GET_XFT_FG(),
 						      curX,
 						      y,
 						      &ch2,
@@ -3839,10 +3996,10 @@ drawXtermText(XtermWidget xw,
 			underline_len += (Cardinal) nc;
 			if (filler) {
 			    ch2 = ' ';
-			    nc = drawClippedXftString(xw,
-						      attr_flags,
+			    nc = drawClippedXftString(&recur,
+						      recur.attr_flags,
 						      CURR_TEMP,
-						      getXftColor(xw, values.foreground),
+						      GET_XFT_FG(),
 						      curX,
 						      y,
 						      &ch2,
@@ -3856,10 +4013,10 @@ drawXtermText(XtermWidget xw,
 	    }
 	    if (last > first) {
 		underline_len += (Cardinal)
-		    drawClippedXftString(xw,
-					 attr_flags,
+		    drawClippedXftString(&recur,
+					 recur.attr_flags,
 					 font,
-					 getXftColor(xw, values.foreground),
+					 GET_XFT_FG(),
 					 curX,
 					 y,
 					 text + first,
@@ -3869,10 +4026,10 @@ drawXtermText(XtermWidget xw,
 #else
 	{
 	    underline_len += (Cardinal)
-		drawClippedXftString(xw,
-				     attr_flags,
+		drawClippedXftString(&recur,
+				     recur.attr_flags,
 				     font,
-				     getXftColor(xw, values.foreground),
+				     GET_XFT_FG(),
 				     x,
 				     y,
 				     text,
@@ -3880,9 +4037,9 @@ drawXtermText(XtermWidget xw,
 	}
 #endif /* OPT_BOX_CHARS */
 
-	(void) drawUnderline(xw,
+	(void) drawUnderline(recur.xw,
 			     gc,
-			     attr_flags,
+			     recur.attr_flags,
 			     underline_len,
 			     FontWidth(screen),
 			     x,
@@ -3894,7 +4051,7 @@ drawXtermText(XtermWidget xw,
 	return x;
     }
 #endif /* OPT_RENDERFONT */
-    curFont = ((attr_flags & BOLDATTR(screen))
+    curFont = ((recur.attr_flags & BOLDATTR(screen))
 	       ? WhichVFontData(screen, fBold)
 	       : WhichVFontData(screen, fNorm));
     /*
@@ -3903,7 +4060,7 @@ drawXtermText(XtermWidget xw,
      * as a dumb terminal vs its use as in fullscreen programs such as vi.
      * Hint: do not try to use a proportional font in the icon.
      */
-    if (!IsIcon(screen) && !(draw_flags & CHARBYCHAR) && screen->fnt_prop) {
+    if (!IsIcon(screen) && !(recur.draw_flags & CHARBYCHAR) && screen->fnt_prop) {
 	int adj, width;
 
 	while (len--) {
@@ -3935,12 +4092,11 @@ drawXtermText(XtermWidget xw,
 		if (adj < 0)
 		    adj = 0;
 	    }
-	    xtermFillCells(xw, draw_flags, gc, x, y, (Cardinal) cells);
-	    x = drawXtermText(xw,
-			      attr_flags,
-			      draw_flags | NOBACKGROUND | CHARBYCHAR,
-			      gc, x + adj, y, chrset,
-			      text++, 1, on_wide) - adj;
+	    xtermFillCells(&recur, gc, x, y, (Cardinal) cells);
+	    recur.draw_flags |= (NOBACKGROUND | CHARBYCHAR);
+	    x = drawXtermText(&recur,
+			      gc, x + adj, y,
+			      text++, 1) - adj;
 	}
 
 	return x;
@@ -3959,7 +4115,7 @@ drawXtermText(XtermWidget xw,
      * that, you can set assumeAllChars.
      */
     if (!IsIcon(screen)
-	&& !(draw_flags & NOTRANSLATION)
+	&& !(recur.draw_flags & NOTRANSLATION)
 	&& (!screen->fnt_boxes
 	    || (FontIsIncomplete(curFont) && !screen->assume_all_chars)
 	    || screen->force_box_chars)) {
@@ -3979,13 +4135,13 @@ drawXtermText(XtermWidget xw,
 
 	    if (ch == HIDDEN_CHAR) {
 		if (last > first) {
-		    x = drawXtermText(xw,
-				      attr_flags,
-				      draw_flags | NOTRANSLATION,
+		    XTermDraw param2 = recur;
+		    param2.draw_flags |= NOTRANSLATION;
+		    x = drawXtermText(&param2,
 				      gc,
 				      x, y,
-				      chrset, text + first,
-				      (unsigned) (last - first), on_wide);
+				      text + first,
+				      (unsigned) (last - first));
 		}
 		first = last + 1;
 		drewBoxes = True;
@@ -3994,7 +4150,7 @@ drawXtermText(XtermWidget xw,
 	    ch_width = CharWidth(ch);
 	    isMissing =
 		IsXtermMissingChar(screen, ch,
-				   ((on_wide || ch_width > 1)
+				   ((recur.on_wide || ch_width > 1)
 				    && okFont(NormalWFont(screen)))
 				   ? WhichVFontData(screen, fWide)
 				   : curFont);
@@ -4011,7 +4167,7 @@ drawXtermText(XtermWidget xw,
 	     */
 	    if_OPT_WIDE_CHARS(screen, {
 		if (!isMissing
-		    && TScreenOf(xw)->force_box_chars) {
+		    && TScreenOf(recur.xw)->force_box_chars) {
 		    if (ch > 255
 			&& ucs2dec(screen, ch) < 32) {
 			ch = ucs2dec(screen, ch);
@@ -4024,33 +4180,24 @@ drawXtermText(XtermWidget xw,
 
 	    if (isMissing) {
 		if (last > first) {
-		    x = drawXtermText(xw,
-				      attr_flags,
-				      draw_flags | NOTRANSLATION,
+		    XTermDraw param2 = recur;
+		    param2.draw_flags |= NOTRANSLATION;
+		    x = drawXtermText(&recur,
 				      gc,
 				      x, y,
-				      chrset, text + first,
-				      (unsigned) (last - first), on_wide);
+				      text + first,
+				      (unsigned) (last - first));
 		}
 #if OPT_WIDE_CHARS
 		if (ch_width <= 0 && ch < 32)
 		    ch_width = 1;	/* special case for line-drawing */
 		else if (ch_width < 0)
 		    ch_width = 1;	/* special case for combining char */
-		if (!ucs_workaround(xw, ch,
-				    attr_flags,
-				    draw_flags,
-				    gc, x, y, chrset, on_wide)) {
-		    xtermDrawBoxChar(xw, ch,
-				     attr_flags,
-				     draw_flags,
-				     gc, x, y, ch_width);
+		if (!ucs_workaround(&recur, ch, gc, x, y)) {
+		    xtermDrawBoxChar(&recur, ch, gc, x, y, ch_width);
 		}
 #else
-		xtermDrawBoxChar(xw, ch,
-				 attr_flags,
-				 draw_flags,
-				 gc, x, y, ch_width);
+		xtermDrawBoxChar(&recur, ch, gc, x, y, ch_width);
 #endif
 		x += (ch_width * FontWidth(screen));
 		first = last + 1;
@@ -4062,18 +4209,14 @@ drawXtermText(XtermWidget xw,
 	}
 	text += first;
 	len = (Cardinal) (last - first);
-	draw_flags |= NOTRANSLATION;
+	recur.draw_flags |= NOTRANSLATION;
 	if (drewBoxes) {
-	    return drawXtermText(xw,
-				 attr_flags,
-				 draw_flags,
+	    return drawXtermText(&recur,
 				 gc,
 				 x,
 				 y,
-				 chrset,
 				 text,
-				 len,
-				 on_wide);
+				 len);
 	}
     }
 #endif /* OPT_BOX_CHARS */
@@ -4083,21 +4226,21 @@ drawXtermText(XtermWidget xw,
      * or the caller made sure that there is none).
      */
 #if OPT_WIDE_ATTRS
-#define AttrFlags() attr_flags
-#define DrawFlags() draw_flags
+#define AttrFlags() recur.attr_flags
+#define DrawFlags() recur.draw_flags
 #else
-#define AttrFlags() (attr_flags & DRAWX_MASK)
-#define DrawFlags() (draw_flags & ~DRAWX_MASK)
+#define AttrFlags() (recur.attr_flags & DRAWX_MASK)
+#define DrawFlags() (recur.draw_flags & ~DRAWX_MASK)
 #endif
     TRACE(("drawtext%c[%4d,%4d] {%#x,%#x} (%d) %d:%s\n",
 	   screen->cursor_state == OFF ? ' ' : '*',
 	   y, x,
 	   AttrFlags(),
 	   DrawFlags(),
-	   chrset, len,
+	   recur.this_chrset, len,
 	   visibleIChars(text, len)));
     if (screen->scale_height != 1.0) {
-	xtermFillCells(xw, draw_flags, gc, x, y, (Cardinal) len);
+	xtermFillCells(&recur, gc, x, y, (Cardinal) len);
     }
     y += FontAscent(screen);
 
@@ -4129,7 +4272,7 @@ drawXtermText(XtermWidget xw,
 
 	    if (!needWide
 		&& !IsIcon(screen)
-		&& ((on_wide || CharWidth(ch) > 1)
+		&& ((recur.on_wide || CharWidth(ch) > 1)
 		    && okFont(NormalWFont(screen)))) {
 		needWide = True;
 	    }
@@ -4137,7 +4280,7 @@ drawXtermText(XtermWidget xw,
 	    /*
 	     * bitmap-fonts are limited to 16-bits.
 	     */
-	    if (ch > 0xffff) {
+	    if (ch > NARROW_ICHAR) {
 		ch = 0;
 	    }
 #endif
@@ -4162,6 +4305,7 @@ drawXtermText(XtermWidget xw,
 		else if Map2Sbuf(0xbd, 0x0153)
 		else if Map2Sbuf(0xbe, 0x0178)
 		/* *INDENT-ON* */
+
 	    }
 	    if (screen->unicode_font
 		&& (text[src] == ANSI_DEL ||
@@ -4181,7 +4325,7 @@ drawXtermText(XtermWidget xw,
 	 * normal font, and drop down to normal fonts with overstriking to help
 	 * show the actual characters.
 	 */
-	useBoldFont = ((attr_flags & BOLDATTR(screen)) != 0);
+	useBoldFont = ((recur.attr_flags & BOLDATTR(screen)) != 0);
 	if (useBoldFont) {
 	    XTermFonts *norm = 0;
 	    XTermFonts *bold = 0;
@@ -4220,12 +4364,12 @@ drawXtermText(XtermWidget xw,
 	underline_len = len;
 
 	/* Set the drawing font */
-	if (!(draw_flags & (DOUBLEHFONT | DOUBLEWFONT))) {
+	if (!(recur.draw_flags & (DOUBLEHFONT | DOUBLEWFONT))) {
 	    VTwin *currentWin = WhichVWin(screen);
 	    VTFontEnum fntId;
 	    CgsEnum cgsId;
-	    Pixel fg = getCgsFore(xw, currentWin, gc);
-	    Pixel bg = getCgsBack(xw, currentWin, gc);
+	    Pixel fg = getCgsFore(recur.xw, currentWin, gc);
+	    Pixel bg = getCgsBack(recur.xw, currentWin, gc);
 
 	    if (needWide
 		&& useBoldFont
@@ -4243,16 +4387,18 @@ drawXtermText(XtermWidget xw,
 		cgsId = gcNorm;
 	    }
 
-	    setCgsFore(xw, currentWin, cgsId, fg);
-	    setCgsBack(xw, currentWin, cgsId, bg);
-	    gc = getCgsGC(xw, currentWin, cgsId);
+	    setCgsFore(recur.xw, currentWin, cgsId, fg);
+	    setCgsBack(recur.xw, currentWin, cgsId, bg);
+	    gc = getCgsGC(recur.xw, currentWin, cgsId);
 
 #if OPT_WIDE_ATTRS
 #if OPT_DEC_CHRSET
-	    if (!(CSET_DOUBLE(chrset) || (draw_flags & DOUBLEWFONT)))
+	    if (!(CSET_DOUBLE(recur.this_chrset) || (recur.draw_flags & DOUBLEWFONT)))
 #endif
-		need_clipping = fixupItalics(xw, draw_flags, gc,
-					     getCgsFont(xw, currentWin, gc),
+		need_clipping = fixupItalics(&recur,
+					     gc,
+					     getCgsFont(recur.xw,
+							currentWin, gc),
 					     y, x, font_width, len);
 #endif
 	    if (fntId != fNorm) {
@@ -4264,8 +4410,7 @@ drawXtermText(XtermWidget xw,
 		    underline_len = real_length = (Cardinal) (dst * 2);
 		} else if (cgsId == gcWide || cgsId == gcWBold) {
 		    underline_len = real_length = (Cardinal) (dst * 2);
-		    xtermFillCells(xw,
-				   draw_flags,
+		    xtermFillCells(&recur,
 				   gc,
 				   x,
 				   y - thisFp->ascent,
@@ -4274,7 +4419,7 @@ drawXtermText(XtermWidget xw,
 	    }
 	}
 
-	if (draw_flags & NOBACKGROUND) {
+	if (recur.draw_flags & NOBACKGROUND) {
 	    XDrawString16(screen->display,
 			  VDrawable(screen), gc,
 			  x, y + ascent_adjust,
@@ -4291,15 +4436,15 @@ drawXtermText(XtermWidget xw,
 	}
 #endif
 
-	if ((attr_flags & BOLDATTR(screen)) && (screen->enbolden || !useBoldFont)) {
-	    if (!(draw_flags & (DOUBLEWFONT | DOUBLEHFONT))) {
+	if ((recur.attr_flags & BOLDATTR(screen)) && (screen->enbolden || !useBoldFont)) {
+	    if (!(recur.draw_flags & (DOUBLEWFONT | DOUBLEHFONT))) {
 		beginClipping(screen, gc, (Cardinal) font_width, len);
 	    }
 	    XDrawString16(screen->display, VDrawable(screen), gc,
 			  x + 1,
 			  y + ascent_adjust,
 			  buffer, dst);
-	    if (!(draw_flags & (DOUBLEWFONT | DOUBLEHFONT))) {
+	    if (!(recur.draw_flags & (DOUBLEWFONT | DOUBLEHFONT))) {
 		endClipping(screen, gc);
 	    }
 	}
@@ -4323,13 +4468,13 @@ drawXtermText(XtermWidget xw,
 
 #if OPT_WIDE_ATTRS
 #if OPT_DEC_CHRSET
-	if (!(CSET_DOUBLE(chrset) || (draw_flags & DOUBLEWFONT)))
+	if (!(CSET_DOUBLE(recur.this_chrset) || (recur.draw_flags & DOUBLEWFONT)))
 #endif
-	    need_clipping = fixupItalics(xw, draw_flags, gc, curFont,
+	    need_clipping = fixupItalics(&recur, gc, curFont,
 					 y, x, font_width, len);
 #endif
 
-	if (draw_flags & NOBACKGROUND) {
+	if (recur.draw_flags & NOBACKGROUND) {
 	    XDrawString(screen->display, VDrawable(screen), gc,
 			x, y, buffer, length);
 	} else {
@@ -4343,21 +4488,21 @@ drawXtermText(XtermWidget xw,
 	}
 #endif
 	underline_len = (Cardinal) length;
-	if ((attr_flags & BOLDATTR(screen)) && screen->enbolden) {
-	    if (!(draw_flags & (DOUBLEWFONT | DOUBLEHFONT))) {
+	if ((recur.attr_flags & BOLDATTR(screen)) && screen->enbolden) {
+	    if (!(recur.draw_flags & (DOUBLEWFONT | DOUBLEHFONT))) {
 		beginClipping(screen, gc, font_width, length);
 	    }
 	    XDrawString(screen->display, VDrawable(screen), gc,
 			x + 1, y, buffer, length);
-	    if (!(draw_flags & (DOUBLEWFONT | DOUBLEHFONT))) {
+	    if (!(recur.draw_flags & (DOUBLEWFONT | DOUBLEHFONT))) {
 		endClipping(screen, gc);
 	    }
 	}
     }
 
-    (void) drawUnderline(xw,
+    (void) drawUnderline(recur.xw,
 			 gc,
-			 attr_flags,
+			 recur.attr_flags,
 			 underline_len,
 			 font_width,
 			 x,

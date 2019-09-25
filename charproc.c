@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1688 2019/07/22 21:14:11 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1708 2019/09/20 23:04:00 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -157,7 +157,7 @@ static void SwitchBufs(XtermWidget /* xw */ ,
 		       Bool /* clearFirst */ );
 static void ToAlternate(XtermWidget /* xw */ ,
 			Bool /* clearFirst */ );
-static void ansi_modes(XtermWidget termw,
+static void ansi_modes(XtermWidget /* xw */ ,
 		       BitFunc /* func */ );
 static int bitclr(unsigned *p, unsigned mask);
 static int bitcpy(unsigned *p, unsigned q, unsigned mask);
@@ -417,6 +417,7 @@ static XtActionsRec actionsList[] = {
 #endif
 };
 /* *INDENT-ON* */
+
 #define SPS screen.printer_state
 
 static XtResource xterm_resources[] =
@@ -771,7 +772,6 @@ static XtResource xterm_resources[] =
     Bres(XtNmkWidth, XtCMkWidth, misc.mk_width, False),
     Bres(XtNprecompose, XtCPrecompose, screen.normalized_c, True),
     Bres(XtNutf8Latin1, XtCUtf8Latin1, screen.utf8_latin1, False),
-    Bres(XtNutf8Title, XtCUtf8Title, screen.utf8_title, False),
     Bres(XtNvt100Graphics, XtCVT100Graphics, screen.vt100_graphics, True),
     Bres(XtNwideChars, XtCWideChars, screen.wide_chars, False),
     Ires(XtNcombiningChars, XtCCombiningChars, screen.max_combining, 2),
@@ -779,6 +779,7 @@ static XtResource xterm_resources[] =
     Ires(XtNmkSampleSize, XtCMkSampleSize, misc.mk_samplesize, 65536),
     Sres(XtNutf8, XtCUtf8, screen.utf8_mode_s, "default"),
     Sres(XtNutf8Fonts, XtCUtf8Fonts, screen.utf8_fonts_s, "default"),
+    Sres(XtNutf8Title, XtCUtf8Title, screen.utf8_title_s, "default"),
     Sres(XtNwideBoldFont, XtCWideBoldFont, misc.default_font.f_wb, DEFWIDEBOLDFONT),
     Sres(XtNwideFont, XtCWideFont, misc.default_font.f_w, DEFWIDEFONT),
     Sres(XtNutf8SelectTypes, XtCUtf8SelectTypes, screen.utf8_select_types, NULL),
@@ -947,6 +948,7 @@ xtermAddInput(Widget w)
 #endif
     };
     /* *INDENT-ON* */
+
     TRACE_TRANS("BEFORE", w);
     XtAppAddActions(app_con, input_actions, XtNumber(input_actions));
     XtAugmentTranslations(w, XtParseTranslationTable(defaultTranslations));
@@ -1165,11 +1167,11 @@ setItalicFont(XtermWidget xw, Bool enable)
 	if ((xw->flags & ATR_ITALIC) == 0) {
 	    xtermLoadItalics(xw);
 	    TRACE(("setItalicFont: enabling Italics\n"));
-	    xtermUpdateFontGCs(xw, True);
+	    xtermUpdateFontGCs(xw, getItalicFont);
 	}
     } else if ((xw->flags & ATR_ITALIC) != 0) {
 	TRACE(("setItalicFont: disabling Italics\n"));
-	xtermUpdateFontGCs(xw, False);
+	xtermUpdateFontGCs(xw, getNormalFont);
     }
 }
 
@@ -1791,6 +1793,7 @@ static struct {
 #endif
 };
 /* *INDENT-ON* */
+
 #if OPT_DEC_RECTOPS
 static char *
 encode_scs(DECNRCM_codes value)
@@ -2368,10 +2371,10 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	    if (sp->parsestate == sp->groundtable) {
 		sp->nextstate = CASE_PRINT;
 	    } else if (sp->parsestate == sos_table) {
-		c &= 0xffff;
+		c &= WIDEST_ICHAR;
 		if (c > 255) {
 		    TRACE(("Found code > 255 while in SOS state: %04X\n", c));
-		    c = '?';
+		    c = BAD_ASCII;
 		}
 	    } else {
 		sp->nextstate = CASE_GROUND_STATE;
@@ -2532,9 +2535,9 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	     * accommodate the application a little by not aborting the
 	     * string.
 	     */
-	    if ((c & 0xffff) > 255) {
+	    if ((c & WIDEST_ICHAR) > 255) {
 		sp->nextstate = CASE_PRINT;
-		c = '?';
+		c = BAD_ASCII;
 	    }
 #endif
 	    sp->string_area[(sp->string_used)++] = CharOf(c);
@@ -6072,11 +6075,16 @@ dpmodes(XtermWidget xw, BitFunc func)
 	    break;
 	case srm_DECCOLM:
 	    if (screen->c132) {
+		Boolean willResize = ((j = IsSM()
+				       ? 132
+				       : 80)
+				      != ((xw->flags & IN132COLUMNS)
+					  ? 132
+					  : 80)
+				      || j != MaxCols(screen));
 		if (!(xw->flags & NOCLEAR_COLM))
 		    ClearScreen(xw);
-		if ((j = IsSM()? 132 : 80) !=
-		    ((xw->flags & IN132COLUMNS) ? 132 : 80) ||
-		    j != MaxCols(screen))
+		if (willResize)
 		    RequestResize(xw, -1, j, True);
 		(*func) (&xw->flags, IN132COLUMNS);
 		resetMargins(xw);
@@ -8000,6 +8008,10 @@ RequestResize(XtermWidget xw, int rows, int cols, Bool text)
     Dimension askedWidth, askedHeight;
     XtGeometryResult status;
     XWindowAttributes attrs;
+#if OPT_RENDERFONT && USE_DOUBLE_BUFFER
+    Boolean buggyXft = False;
+    Cardinal ignore = 0;
+#endif
 
     TRACE(("RequestResize(rows=%d, cols=%d, text=%d)\n", rows, cols, text));
 
@@ -8080,6 +8092,21 @@ RequestResize(XtermWidget xw, int rows, int cols, Bool text)
     getXtermSizeHints(xw);
 #endif
 
+#if OPT_RENDERFONT && USE_DOUBLE_BUFFER
+    /*
+     * Work around a bug seen when vttest switches from 132 columns back to 80
+     * columns, while double-buffering is active.  If Xft is active during the
+     * resize, the screen will be blank thereafter.  This workaround causes
+     * some extra flickering, but that is preferable to a blank screen.
+     */
+#define ToggleXft() HandleRenderFont((Widget)xw, (XEvent *)0, (String *)0, &ignore)
+    if (resource.buffered
+	&& UsingRenderFont(xw)) {
+	ToggleXft();
+	buggyXft = True;
+    }
+#endif
+
     TRACE(("...requesting resize %dx%d\n", askedHeight, askedWidth));
     status = REQ_RESIZE((Widget) xw,
 			askedWidth, askedHeight,
@@ -8113,7 +8140,14 @@ RequestResize(XtermWidget xw, int rows, int cols, Bool text)
     if (xtermAppPending())
 	xevents(xw);
 
+#if OPT_RENDERFONT && USE_DOUBLE_BUFFER
+    if (buggyXft) {
+	ToggleXft();
+    }
+#endif
+
     TRACE(("...RequestResize done\n"));
+    return;
 }
 
 static String xterm_trans =
@@ -8222,6 +8256,27 @@ repairColors(XtermWidget target)
 
 #if OPT_WIDE_CHARS
 static void
+set_utf8_feature(TScreen *screen, int *feature)
+{
+    if (*feature == uDefault) {
+	switch (screen->utf8_mode) {
+	case uFalse:
+	    /* FALLTHRU */
+	case uTrue:
+	    *feature = screen->utf8_mode;
+	    break;
+	case uDefault:
+	    /* should not happen */
+	    *feature = uTrue;
+	    break;
+	case uAlways:
+	    /* use this to disable menu entry */
+	    break;
+	}
+    }
+}
+
+static void
 VTInitialize_locale(XtermWidget xw)
 {
     TScreen *screen = TScreenOf(xw);
@@ -8230,6 +8285,7 @@ VTInitialize_locale(XtermWidget xw)
     TRACE(("VTInitialize_locale\n"));
     TRACE(("... request screen.utf8_mode = %d\n", screen->utf8_mode));
     TRACE(("... request screen.utf8_fonts = %d\n", screen->utf8_fonts));
+    TRACE(("... request screen.utf8_title = %d\n", screen->utf8_title));
 
     screen->utf8_always = (screen->utf8_mode == uAlways);
     if (screen->utf8_mode < 0)
@@ -8336,27 +8392,14 @@ VTInitialize_locale(XtermWidget xw)
     }
 #endif /* OPT_LUIT_PROG */
 
-    if (screen->utf8_fonts == uDefault) {
-	switch (screen->utf8_mode) {
-	case uFalse:
-	    /* FALLTHRU */
-	case uTrue:
-	    screen->utf8_fonts = screen->utf8_mode;
-	    break;
-	case uDefault:
-	    /* should not happen */
-	    screen->utf8_fonts = uTrue;
-	    break;
-	case uAlways:
-	    /* use this to disable menu entry */
-	    break;
-	}
-    }
+    set_utf8_feature(screen, &screen->utf8_fonts);
+    set_utf8_feature(screen, &screen->utf8_title);
 
     screen->utf8_inparse = (Boolean) (screen->utf8_mode != uFalse);
 
     TRACE(("... updated screen.utf8_mode = %d\n", screen->utf8_mode));
     TRACE(("... updated screen.utf8_fonts = %d\n", screen->utf8_fonts));
+    TRACE(("... updated screen.utf8_title = %d\n", screen->utf8_title));
     TRACE(("...VTInitialize_locale done\n"));
 }
 #endif
@@ -8380,6 +8423,7 @@ lookupSelectUnit(XtermWidget xw, Cardinal item, String value)
 #endif
     };
     /* *INDENT-ON* */
+
     TScreen *screen = TScreenOf(xw);
     String next = x_skip_nonblanks(value);
     Cardinal n;
@@ -9363,6 +9407,8 @@ VTInitialize(Widget wrequest,
 	extendedBoolean(request->screen.utf8_mode_s, tblUtf8Mode, uLast);
     request->screen.utf8_fonts =
 	extendedBoolean(request->screen.utf8_fonts_s, tblUtf8Mode, uLast);
+    request->screen.utf8_title =
+	extendedBoolean(request->screen.utf8_title_s, tblUtf8Mode, uLast);
 
     /*
      * Make a copy in the input/request so that DefaultFontN() works for
@@ -9374,7 +9420,6 @@ VTInitialize(Widget wrequest,
     VTInitialize_locale(request);
     init_Bres(screen.normalized_c);
     init_Bres(screen.utf8_latin1);
-    init_Bres(screen.utf8_title);
 
 #if OPT_LUIT_PROG
     init_Bres(misc.callfilter);
@@ -9386,6 +9431,7 @@ VTInitialize(Widget wrequest,
     init_Ires(screen.utf8_inparse);
     init_Ires(screen.utf8_mode);
     init_Ires(screen.utf8_fonts);
+    init_Ires(screen.utf8_title);
     init_Ires(screen.max_combining);
 
     init_Ires(screen.utf8_always);	/* from utf8_mode, used in doparse */
@@ -10210,11 +10256,13 @@ initBorderGC(XtermWidget xw, VTwin *win)
     TScreen *screen = TScreenOf(xw);
     Pixel filler;
 
-    TRACE(("initBorderGC core %#lx, %#lx text %#lx, %#lx\n",
+    TRACE(("initBorderGC(%s) core bg %#lx, bd %#lx text fg %#lx, bg %#lx %s\n",
+	   (win == &(screen->fullVwin)) ? "full" : "icon",
 	   xw->core.background_pixel,
 	   xw->core.border_pixel,
 	   T_COLOR(screen, TEXT_FG),
-	   T_COLOR(screen, TEXT_BG)));
+	   T_COLOR(screen, TEXT_BG),
+	   xw->misc.re_verse ? "reverse" : "normal"));
     if (xw->misc.color_inner_border
 	&& (xw->core.background_pixel != xw->core.border_pixel)) {
 	/*
@@ -10230,7 +10278,17 @@ initBorderGC(XtermWidget xw, VTwin *win)
 	setCgsFore(xw, win, gcBorder, filler);
 	setCgsBack(xw, win, gcBorder, filler);
 	win->border_gc = getCgsGC(xw, win, gcBorder);
-    } else {
+    }
+#if USE_DOUBLE_BUFFER
+    else if (resource.buffered) {
+	filler = T_COLOR(screen, TEXT_BG);
+	TRACE((" border %#lx (buffered)\n", filler));
+	setCgsFore(xw, win, gcBorder, filler);
+	setCgsBack(xw, win, gcBorder, filler);
+	win->border_gc = getCgsGC(xw, win, gcBorder);
+    }
+#endif
+    else {
 	TRACE((" border unused\n"));
 	win->border_gc = 0;
     }
@@ -10486,18 +10544,19 @@ VTRealize(Widget w,
 	Window win = screen->fullVwin.window;
 	Drawable d;
 	int major, minor;
-	if (!XdbeQueryExtension(XtDisplay(xw), &major, &minor)) {
-	    fprintf(stderr, "XdbeQueryExtension returned zero!\n");
-	    exit(3);
+	if (XdbeQueryExtension(XtDisplay(xw), &major, &minor)) {
+	    d = XdbeAllocateBackBufferName(XtDisplay(xw), win,
+					   (XdbeSwapAction) XdbeCopied);
+	    if (d == None) {
+		fprintf(stderr, "Couldn't allocate a back buffer!\n");
+		exit(3);
+	    }
+	    screen->fullVwin.drawable = d;
+	    screen->needSwap = 1;
+	    TRACE(("initialized double-buffering\n"));
+	} else {
+	    resource.buffered = False;
 	}
-	d = XdbeAllocateBackBufferName(XtDisplay(xw), win, (XdbeSwapAction) XdbeCopied);
-	if (d == None) {
-	    fprintf(stderr, "Couldn't allocate a back buffer!\n");
-	    exit(3);
-	}
-	screen->fullVwin.drawable = d;
-	screen->needSwap = 1;
-	TRACE(("initialized double-buffering\n"));
     }
 #endif /* USE_DOUBLE_BUFFER */
     screen->event_mask = values->event_mask;
@@ -11186,6 +11245,7 @@ void
 ShowCursor(void)
 {
     XtermWidget xw = term;
+    XTermDraw params;
     TScreen *screen = TScreenOf(xw);
     IChar base;
     unsigned flags;
@@ -11502,6 +11562,7 @@ ShowCursor(void)
 	    int italics_off = ((xw->flags & ATR_ITALIC) != 0);
 	    int fix_italics = (italics_on != italics_off);
 	    int which_font = ((xw->flags & BOLD) ? fBold : fNorm);
+	    MyGetFont getter = italics_on ? getItalicFont : getNormalFont;
 
 	    if_OPT_WIDE_CHARS(screen, {
 		if (isWide((int) base)) {
@@ -11511,37 +11572,38 @@ ShowCursor(void)
 
 	    if (fix_italics && UseItalicFont(screen)) {
 		xtermLoadItalics(xw);
-		if (italics_on) {
-		    setCgsFont(xw, currentWin, currentCgs,
-			       getItalicFont(screen, which_font));
-		} else {
-		    setCgsFont(xw, currentWin, currentCgs,
-			       getNormalFont(screen, which_font));
-		}
+		setCgsFont(xw, currentWin, currentCgs,
+			   getter(screen, which_font));
 	    }
 	    currentGC = getCgsGC(xw, currentWin, currentCgs);
 #endif /* OPT_WIDE_ATTRS */
 
-	    drawXtermText(xw,
-			  flags & DRAWX_MASK,
-			  0,
+	    /* *INDENT-EQLS* */
+	    params.xw          = xw;
+	    params.attr_flags  = (flags & DRAWX_MASK);
+	    params.draw_flags  = 0;
+	    params.this_chrset = LineCharSet(screen, ld);
+	    params.real_chrset = CSET_SWL;
+	    params.on_wide     = 0;
+
+	    drawXtermText(&params,
 			  currentGC, x, y,
-			  LineCharSet(screen, ld),
-			  &base, 1, 0);
+			  &base, 1);
 
 #if OPT_WIDE_CHARS
 	    if_OPT_WIDE_CHARS(screen, {
 		size_t off;
+
+		/* *INDENT-EQLS* */
+		params.draw_flags = NOBACKGROUND;
+		params.on_wide    = isWide((int) base);
+
 		for_each_combData(off, ld) {
 		    if (!(ld->combData[off][my_col]))
 			break;
-		    drawXtermText(xw,
-				  (flags & DRAWX_MASK),
-				  NOBACKGROUND,
+		    drawXtermText(&params,
 				  currentGC, x, y,
-				  LineCharSet(screen, ld),
-				  ld->combData[off] + my_col,
-				  1, isWide((int) base));
+				  ld->combData[off] + my_col, 1);
 		}
 	    });
 #endif
@@ -11554,13 +11616,8 @@ ShowCursor(void)
 	    }
 #if OPT_WIDE_ATTRS
 	    if (fix_italics && UseItalicFont(screen)) {
-		if (italics_on) {
-		    setCgsFont(xw, currentWin, currentCgs,
-			       getNormalFont(screen, which_font));
-		} else {
-		    setCgsFont(xw, currentWin, currentCgs,
-			       getItalicFont(screen, which_font));
-		}
+		setCgsFont(xw, currentWin, currentCgs,
+			   getter(screen, which_font));
 	    }
 #endif
 	}
@@ -11577,6 +11634,7 @@ void
 HideCursor(void)
 {
     XtermWidget xw = term;
+    XTermDraw params;
     TScreen *screen = TScreenOf(xw);
     GC currentGC;
     int x, y;
@@ -11593,6 +11651,7 @@ HideCursor(void)
     int which_Cgs = gcMAX;
     unsigned attr_flags;
     int which_font = fNorm;
+    MyGetFont getter = getNormalFont;
 #endif
 
     if (screen->cursor_state == OFF)
@@ -11669,6 +11728,8 @@ HideCursor(void)
     attr_flags = ld->attribs[cursor_col];
     if ((attr_flags & ATR_ITALIC) ^ (xw->flags & ATR_ITALIC)) {
 	which_font = ((attr_flags & BOLD) ? fBold : fNorm);
+	if ((attr_flags & ATR_ITALIC) && UseItalicFont(screen))
+	    getter = getItalicFont;
 
 	if_OPT_WIDE_CHARS(screen, {
 	    if (isWide((int) base)) {
@@ -11680,9 +11741,7 @@ HideCursor(void)
 	if (which_Cgs != gcMAX) {
 	    setCgsFont(xw, WhichVWin(screen),
 		       (CgsEnum) which_Cgs,
-		       (((attr_flags & ATR_ITALIC) && UseItalicFont(screen))
-			? getItalicFont(screen, which_font)
-			: getNormalFont(screen, which_font)));
+		       getter(screen, which_font));
 	}
     }
 #endif
@@ -11695,26 +11754,32 @@ HideCursor(void)
     x = LineCursorX(screen, ld, cursor_col);
     y = CursorY(screen, screen->cursorp.row);
 
-    drawXtermText(xw,
-		  flags & DRAWX_MASK,
-		  0,
+    /* *INDENT-EQLS* */
+    params.xw          = xw;
+    params.attr_flags  = (flags & DRAWX_MASK);
+    params.draw_flags  = 0;
+    params.this_chrset = LineCharSet(screen, ld);
+    params.real_chrset = CSET_SWL;
+    params.on_wide     = 0;
+
+    drawXtermText(&params,
 		  currentGC, x, y,
-		  LineCharSet(screen, ld),
-		  &base, 1, 0);
+		  &base, 1);
 
 #if OPT_WIDE_CHARS
     if_OPT_WIDE_CHARS(screen, {
 	size_t off;
+
+	/* *INDENT-EQLS* */
+	params.draw_flags  = NOBACKGROUND;
+	params.on_wide     = isWide((int) base);
+
 	for_each_combData(off, ld) {
 	    if (!(ld->combData[off][my_col]))
 		break;
-	    drawXtermText(xw,
-			  (flags & DRAWX_MASK),
-			  NOBACKGROUND,
+	    drawXtermText(&params,
 			  currentGC, x, y,
-			  LineCharSet(screen, ld),
-			  ld->combData[off] + my_col,
-			  1, isWide((int) base));
+			  ld->combData[off] + my_col, 1);
 	}
     });
 #endif
@@ -11724,9 +11789,7 @@ HideCursor(void)
     if (which_Cgs != gcMAX) {
 	setCgsFont(xw, WhichVWin(screen),
 		   (CgsEnum) which_Cgs,
-		   (((xw->flags & ATR_ITALIC) && UseItalicFont(screen))
-		    ? getItalicFont(screen, which_font)
-		    : getNormalFont(screen, which_font)));
+		   getter(screen, which_font));
     }
 #endif
     resetXtermGC(xw, flags, in_selection);
@@ -12661,6 +12724,7 @@ VTInitTranslations(void)
     };
 #undef DATA
     /* *INDENT-ON* */
+
     char *result = 0;
 
     int pass;

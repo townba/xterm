@@ -1,4 +1,4 @@
-/* $XTermId: ptyx.h,v 1.964 2019/07/19 00:40:41 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.978 2019/09/20 23:54:35 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -382,6 +382,13 @@ typedef struct {
 #define	ANSI_OSC	0x9D
 #define	ANSI_PM		0x9E
 #define	ANSI_APC	0x9F
+
+#define BAD_ASCII	'?'
+#define NonLatin1(c)	(((c) != ANSI_LF) && \
+			 ((c) != ANSI_HT) && \
+			 (((c) < ANSI_SPA) || \
+			  ((c) >= ANSI_DEL && (c) <= ANSI_APC)))
+#define OnlyLatin1(c)	(NonLatin1(c) ? BAD_ASCII : (c))
 
 #define L_CURL		'{'
 #define R_CURL		'}'
@@ -885,11 +892,13 @@ typedef enum {
     , fBold			/* bold font */
 #if OPT_WIDE_ATTRS || OPT_RENDERWIDE
     , fItal			/* italic font */
+    , fBtal			/* bold-italic font */
 #endif
 #if OPT_WIDE_CHARS
     , fWide			/* double-width font */
     , fWBold			/* double-width bold font */
     , fWItal			/* double-width italic font */
+    , fWBtal			/* double-width bold-italic font */
 #endif
     , fMAX
 } VTFontEnum;
@@ -1204,6 +1213,7 @@ typedef enum {
     , esTrue
     , esAlways
     , esNever
+    , esLAST
 } FullscreenOps;
 
 #ifndef NO_ACTIVE_ICON
@@ -1501,9 +1511,8 @@ typedef enum {
 #else
 
 #define if_OPT_DEC_CHRSET(code) /*nothing*/
-
-#define GetLineDblCS(ld)       0
-
+#define CSET_SWL                        0
+#define GetLineDblCS(ld)                0
 #define LineCharSet(screen, ld)         0
 #define LineMaxCol(screen, ld)          screen->max_col
 #define LineCursorX(screen, ld, col)    CursorX(screen, col)
@@ -1585,9 +1594,12 @@ typedef unsigned char IAttr;	/* at least 8 bits */
 #if OPT_WIDE_CHARS
 #define if_OPT_WIDE_CHARS(screen, code) if(screen->wide_chars) code
 #define if_WIDE_OR_NARROW(screen, wide, narrow) if(screen->wide_chars) wide else narrow
+#define NARROW_ICHAR	0xffff
 #if OPT_WIDER_ICHAR
+#define WIDEST_ICHAR	0x1fffff
 typedef unsigned IChar;		/* for 8-21 bit characters */
 #else
+#define WIDEST_ICHAR	NARROW_ICHAR
 typedef unsigned short IChar;	/* for 8-16 bit characters */
 #endif
 #else
@@ -1900,6 +1912,8 @@ typedef struct {
 	int		right;
 } XTermRect;
 
+/***====================================================================***/
+
 	/* indices into save_modes[] */
 typedef enum {
 	DP_ALLOW_ALTBUF,
@@ -2119,13 +2133,9 @@ typedef struct {
 typedef struct {
     char *f_n;			/* the normal font */
     char *f_b;			/* the bold font */
-#if OPT_WIDE_ATTRS
-    char *f_i;			/* italic font (Xft only) */
-#endif
 #if OPT_WIDE_CHARS
     char *f_w;			/* the normal wide font */
     char *f_wb;			/* the bold wide font */
-    char *f_wi;			/* wide italic font (Xft only) */
 #endif
 } VTFontNames;
 
@@ -2134,11 +2144,13 @@ typedef struct {
     char **list_b;		/* the bold font */
 #if OPT_WIDE_ATTRS || OPT_RENDERWIDE
     char **list_i;		/* italic font (Xft only) */
+    char **list_bi;		/* bold-italic font (Xft only) */
 #endif
 #if OPT_WIDE_CHARS
     char **list_w;		/* the normal wide font */
     char **list_wb;		/* the bold wide font */
     char **list_wi;		/* wide italic font (Xft only) */
+    char **list_wbi;		/* wide bold-italic font (Xft only) */
 #endif
 } VTFontList;
 
@@ -2226,14 +2238,17 @@ typedef struct {
 #if OPT_DIRECT_COLOR
 	Boolean		direct_color;	/* direct-color enabled?	*/
 #endif
-#endif
+#endif /* OPT_ISO_COLORS */
 #if OPT_DEC_CHRSET
 	Boolean		font_doublesize;/* enable font-scaling		*/
 	int		cache_doublesize;/* limit of our cache		*/
 	Char		cur_chrset;	/* character-set index & code	*/
 	int		fonts_used;	/* count items in double_fonts	*/
 	XTermFonts	double_fonts[NUM_CHRSET];
+#if OPT_RENDERFONT
+	XftFont *	double_xft_fonts[NUM_CHRSET];
 #endif
+#endif /* OPT_DEC_CHRSET */
 #if OPT_DEC_RECTOPS
 	int		cur_decsace;	/* parameter for DECSACE	*/
 	int		checksum_ext;	/* extensions for DECRQCRA	*/
@@ -2246,13 +2261,14 @@ typedef struct {
 	Boolean		normalized_c;	/* true to precompose to Form C */
 	char *		utf8_mode_s;	/* use UTF-8 decode/encode	*/
 	char *		utf8_fonts_s;	/* use UTF-8 decode/encode	*/
+	char *		utf8_title_s;	/* use UTF-8 titles		*/
 	int		utf8_nrc_mode;	/* saved UTF-8 mode for DECNRCM */
 	Boolean		utf8_always;	/* special case for wideChars	*/
 	int		utf8_mode;	/* use UTF-8 decode/encode: 0-2	*/
-	int		utf8_fonts;	/* use UTF-8 decode/encode: 0-2	*/
+	int		utf8_fonts;	/* use UTF-8 fonts: 0-2		*/
+	int		utf8_title;	/* use UTF-8 EWHM props: 0-2	*/
 	int		max_combining;	/* maximum # of combining chars	*/
 	Boolean		utf8_latin1;	/* use UTF-8 with Latin-1 bias	*/
-	Boolean		utf8_title;	/* use UTF-8 titles		*/
 	int		latin9_mode;	/* poor man's luit, latin9	*/
 	int		unicode_font;	/* font uses unicode encoding	*/
 	int		utf_count;	/* state of utf_char		*/
@@ -2735,10 +2751,12 @@ typedef struct {
 	XTermXftFonts	renderFontNorm[NMENUFONTS];
 	XTermXftFonts	renderFontBold[NMENUFONTS];
 	XTermXftFonts	renderFontItal[NMENUFONTS];
+	XTermXftFonts	renderFontBtal[NMENUFONTS];
 #if OPT_RENDERWIDE
 	XTermXftFonts	renderWideNorm[NMENUFONTS];
 	XTermXftFonts	renderWideBold[NMENUFONTS];
 	XTermXftFonts	renderWideItal[NMENUFONTS];
+	XTermXftFonts	renderWideBtal[NMENUFONTS];
 	TypedBuffer(XftCharSpec);
 #else
 	TypedBuffer(XftChar8);
@@ -2755,6 +2773,8 @@ typedef struct {
 	char **		tcap_fkeys;
 #endif
 } TScreen;
+
+typedef XTermFonts *(*MyGetFont) (TScreen *, int);
 
 typedef struct _TekPart {
 	XFontStruct *	Tfont[TEKNUMFONTS];
@@ -3217,7 +3237,7 @@ typedef struct _TekWidgetRec {
 #define LEFT_RIGHT      MiscBIT(10)	/* true if left/right margin mode */
 #define NOCLEAR_COLM    MiscBIT(11)	/* true if no clear on DECCOLM change */
 
-#define DrawBIT(n)	xBIT(n + 8)	/* drawXtermText flags */
+#define DrawBIT(n)	xBIT(n + 8)	/* XTermDraw.draw_flags */
 /* The following attributes are used in the argument of drawXtermText()  */
 #define NOBACKGROUND	DrawBIT(0)	/* Used for overstrike */
 #define NOTRANSLATION	DrawBIT(1)	/* No scan for chars missing in font */
@@ -3283,6 +3303,22 @@ typedef struct _TekWidgetRec {
 #define OFF_PROTECT 0
 #define DEC_PROTECT 1
 #define ISO_PROTECT 2
+
+/***====================================================================***/
+
+/*
+ * Reduce parameter-count of drawXtermText by putting less-modified data here.
+ */
+typedef struct {
+	XtermWidget	xw;
+	unsigned	attr_flags;
+	unsigned	draw_flags;
+	unsigned	this_chrset;
+	unsigned	real_chrset;
+	int		on_wide;
+} XTermDraw;
+
+/***====================================================================***/
 
 #define TScreenOf(xw)	(&(xw)->screen)
 #define TekScreenOf(tw) (&(tw)->screen)

@@ -30,7 +30,7 @@
  * sale, use or other dealings in this Software without prior written        *
  * authorization.                                                            *
  *****************************************************************************
-  $XTermId: xterm.log.html,v 1.2089 2019/07/22 22:31:50 tom Exp $
+  $XTermId: xterm.log.html,v 1.2105 2019/09/22 23:40:20 tom Exp $
   -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 
@@ -73,6 +73,8 @@
   CHANGELOG</a>).</p>
 
   <ul>
+    <li><a href="#xterm_349">Patch #349 - 2019/09/22</a></li>
+
     <li><a href="#xterm_348">Patch #348 - 2019/07/22</a></li>
 
     <li><a href="#xterm_347">Patch #347 - 2019/06/30</a></li>
@@ -977,6 +979,71 @@
     <li><a href="#xterm_01">Patch #1 - 1996/1/6</a></li>
   </ul>
 
+  <h1><a name="xterm_349" id="xterm_349">Patch #349 -
+  2019/09/22</a></h1>
+
+  <ul>
+    <li>add graphic context to support bold+italics (patch by Quinn
+    Strahl).</li>
+
+    <li>document window properties in the manual page.</li>
+
+    <li>improve title-string feature:
+
+      <ul>
+        <li>if any of <code>allowC1Printable</code>,
+        <code>utf8Title</code> or <code>titleModes</code> hint that
+        an application might send a title-string encoded in UTF-8,
+        check if that is the case, and if it is recodable into
+        ISO-8859-1, use that for the ICCCM-style title.</li>
+
+        <li>check if the title given by a control sequence happens
+        to be already encoded in UTF-8, to avoid double-encoding
+        (FreeBSD #240393).</li>
+
+        <li>Make <code>sameName</code> resource work for the EWMH
+        titles.</li>
+
+        <li>Modify menu-state of <code>utf8Title</code> to be
+        consistent with the <code>utf8</code> source, i.e., setting
+        the EWMH properties automatically when UTF-8 is
+        active.</li>
+      </ul>
+    </li>
+
+    <li>reorganize text-drawing to make it possible to investigate
+    using Xft to implement VT100-style double-sized characters.
+    While doing this, made a workaround for apparent Xft bug which
+    loses its drawable state when switching from 132 to 80
+    columns.</li>
+
+    <li>improve font-warning messages by showing which are
+    <em>derived</em> rather than directly from resource settings
+    (suggested by Tomas Korbar). Also filter repeated font-warning
+    messages, to accommodate broken X configurations.</li>
+
+    <li>fix an inconsistency between failure to load derived wide
+    font versus failure to load derived wide-bold font (Redhat
+    #1679790). That relies upon the &ldquo;:unscaled&rdquo;
+    property which is broken in some distributions (however, recent
+    Debian and the BSDs such as MacOS work).</li>
+
+    <li>updated autoconf-252 to check X11R7 include/lib directories
+    found on some older configurations.</li>
+
+    <li>set a graphic-context for border when double-buffering is
+    active; to prevent the border color from changing when
+    switching to reverse-video.</li>
+
+    <li>build-fix for <code>--disable-ziconbeep</code>, which
+    conflicted with the new double-buffer configuration (report by
+    Brian Lindholm).</li>
+
+    <li>fix loop-limit for lookup of <code>fullscreen</code>
+    resource broken in <a href="#xterm_347">xterm #347</a> (report
+    by Scott Bertilson).</li>
+  </ul>
+
   <h1><a name="xterm_348" id="xterm_348">Patch #348 -
   2019/07/22</a></h1>
 
@@ -984,7 +1051,8 @@
     <li>update window-manager hints when exiting Tek4014 mode
     (Debian #932569, patch by Jonathan Irwin).</li>
 
-    <li>fix a misformatted printf in <code>report-sgr.pl</code>.</li>
+    <li>fix a misformatted printf in
+    <code>report-sgr.pl</code>.</li>
 
     <li>add configure check for termios types, to improve
     compiler-warnings.</li>
