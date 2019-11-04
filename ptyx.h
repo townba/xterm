@@ -1,4 +1,4 @@
-/* $XTermId: ptyx.h,v 1.978 2019/09/20 23:54:35 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.985 2019/11/02 16:17:42 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -558,7 +558,7 @@ typedef enum {
 #endif
 
 #ifndef OPT_DEC_RECTOPS
-#define OPT_DEC_RECTOPS 0 /* true if xterm is configured for VT420 rectangles */
+#define OPT_DEC_RECTOPS 1 /* true if xterm is configured for VT420 rectangles */
 #endif
 
 #ifndef OPT_SIXEL_GRAPHICS
@@ -566,7 +566,7 @@ typedef enum {
 #endif
 
 #ifndef OPT_SCREEN_DUMPS
-#define OPT_SCREEN_DUMPS 0 /* true if xterm supports screen dumps */
+#define OPT_SCREEN_DUMPS 1 /* true if xterm supports screen dumps */
 #endif
 
 #ifndef OPT_REGIS_GRAPHICS
@@ -602,7 +602,7 @@ typedef enum {
 #endif
 
 #ifndef OPT_FIFO_LINES
-#define OPT_FIFO_LINES 0 /* optimize save-lines feature using FIFO */
+#define OPT_FIFO_LINES 1 /* optimize save-lines feature using FIFO */
 #endif
 
 #ifndef OPT_FOCUS_EVENT
@@ -638,15 +638,15 @@ typedef enum {
 #endif
 
 #ifndef OPT_DIRECT_COLOR
-#define OPT_DIRECT_COLOR  0 /* true if xterm is configured with direct-colors */
+#define OPT_DIRECT_COLOR  OPT_ISO_COLORS /* true if xterm is configured with direct-colors */
 #endif
 
 #ifndef OPT_256_COLORS
-#define OPT_256_COLORS  0 /* true if xterm is configured with 256 colors */
+#define OPT_256_COLORS  1 /* true if xterm is configured with 256 colors */
 #endif
 
 #ifndef OPT_88_COLORS
-#define OPT_88_COLORS	0 /* true if xterm is configured with 88 colors */
+#define OPT_88_COLORS	1 /* true if xterm is configured with 88 colors */
 #endif
 
 #ifndef OPT_HIGHLIGHT_COLOR
@@ -658,7 +658,7 @@ typedef enum {
 #endif
 
 #ifndef OPT_LUIT_PROG
-#define OPT_LUIT_PROG   0 /* true if xterm supports luit */
+#define OPT_LUIT_PROG   1 /* true if xterm supports luit */
 #endif
 
 #ifndef OPT_MAXIMIZE
@@ -678,7 +678,7 @@ typedef enum {
 #endif
 
 #ifndef OPT_PASTE64
-#define OPT_PASTE64	0 /* program control of select/paste via base64 */
+#define OPT_PASTE64	1 /* program control of select/paste via base64 */
 #endif
 
 #ifndef OPT_PC_COLORS
@@ -754,7 +754,7 @@ typedef enum {
 #endif
 
 #ifndef OPT_SELECT_REGEX
-#define OPT_SELECT_REGEX 0 /* true if xterm supports regular-expression selects */
+#define OPT_SELECT_REGEX 1 /* true if xterm supports regular-expression selects */
 #endif
 
 #ifndef OPT_SELECTION_OPS
@@ -778,11 +778,11 @@ typedef enum {
 #endif
 
 #ifndef OPT_TCAP_FKEYS
-#define OPT_TCAP_FKEYS	0 /* true for experimental termcap function-keys */
+#define OPT_TCAP_FKEYS	1 /* true for termcap function-keys */
 #endif
 
 #ifndef OPT_TCAP_QUERY
-#define OPT_TCAP_QUERY	0 /* true for experimental termcap query */
+#define OPT_TCAP_QUERY	1 /* true for termcap query */
 #endif
 
 #ifndef OPT_TEK4014
@@ -810,7 +810,7 @@ typedef enum {
 #endif
 
 #ifndef OPT_WIDE_CHARS
-#define OPT_WIDE_CHARS  0 /* true if xterm supports 16-bit characters */
+#define OPT_WIDE_CHARS  1 /* true if xterm supports 16-bit characters */
 #endif
 
 #ifndef OPT_WIDER_ICHAR
@@ -819,6 +819,10 @@ typedef enum {
 
 #ifndef OPT_XMC_GLITCH
 #define OPT_XMC_GLITCH	0 /* true if xterm supports xmc (magic cookie glitch) */
+#endif
+
+#ifndef OPT_XRES_QUERY
+#define OPT_XRES_QUERY	1 /* true for resource query */
 #endif
 
 #ifndef OPT_XTERM_SGR
@@ -1521,7 +1525,9 @@ typedef enum {
 #endif
 
 #if OPT_LUIT_PROG && !OPT_WIDE_CHARS
-#error Luit requires the wide-chars configuration
+/* Luit requires the wide-chars configuration */
+#undef OPT_LUIT_PROG
+#define OPT_LUIT_PROG 0
 #endif
 
 /***====================================================================***/
@@ -3445,6 +3451,8 @@ extern Window VDrawable(TScreen * /* screen */);
 
 #define AllowTitleOps(w)	AllowXtermOps(w, allowTitleOps)
 
+#define AllowXResOps(w)		True
+
 #define SpecialWindowOps(w,name) (!TScreenOf(w)->disallow_win_ops[name])
 #define AllowWindowOps(w,name)	(AllowXtermOps(w, allowWindowOps) || \
 				 SpecialWindowOps(w,name))
@@ -3485,94 +3493,6 @@ typedef struct Tek_Link
 #endif
 #define	I_SIGNAL	0x02
 #define	I_TEK		0x04
-
-/***====================================================================***/
-
-#if OPT_TRACE
-#undef NDEBUG			/* turn on assert's */
-#else
-#ifndef NDEBUG
-#define NDEBUG			/* not debugging, don't do assert's */
-#endif
-#endif
-
-#include <trace.h>
-
-#ifndef TRACE
-#define TRACE(p) /*nothing*/
-#endif
-
-#ifndef TRACE_CLOSE
-#define TRACE_CLOSE() /*nothing*/
-#endif
-
-#ifndef TRACE_ARGV
-#define TRACE_ARGV(tag,argv) /*nothing*/
-#endif
-
-#ifndef TRACE_CHILD
-#define TRACE_CHILD /*nothing*/
-#endif
-
-#ifndef TRACE_EVENT
-#define TRACE_EVENT(t,e,s,n) /*nothing*/
-#endif
-
-#ifndef TRACE_FALLBACK
-#define TRACE_FALLBACK(w,t,c,n,f) /*nothing*/
-#endif
-
-#ifndef TRACE_FOCUS
-#define TRACE_FOCUS(w,e) /*nothing*/
-#endif
-
-#ifndef TRACE_HINTS
-#define TRACE_HINTS(hints) /*nothing*/
-#endif
-
-#ifndef TRACE_IDS
-#define TRACE_IDS /*nothing*/
-#endif
-
-#ifndef TRACE_OPTS
-#define TRACE_OPTS(opts,ress,lens) /*nothing*/
-#endif
-
-#ifndef TRACE_TRANS
-#define TRACE_TRANS(name,w) /*nothing*/
-#endif
-
-#ifndef TRACE_WIN_ATTRS
-#define TRACE_WIN_ATTRS(w) /*nothing*/
-#endif
-
-#ifndef TRACE_WM_HINTS
-#define TRACE_WM_HINTS(w) /*nothing*/
-#endif
-
-#ifndef TRACE_X_ERR
-#define TRACE_X_ERR(d,e) /*nothing*/
-#endif
-
-#ifndef TRACE_XRES
-#define TRACE_XRES() /*nothing*/
-#endif
-
-#ifndef TRACE2
-#define TRACE2(p) /*nothing*/
-#endif
-
-#if OPT_TRACE && !defined(DEBUG)
-#define DEBUG 1
-#endif
-
-#ifdef DEBUG
-#define if_DEBUG(code) if(debug) code
-#else
-#define if_DEBUG(code) /*nothing*/
-#endif
-
-#define DEBUG_MSG(text) if_DEBUG({ IGNORE_RC(write(2, text, sizeof(text) - 1)); })
 
 /* *INDENT-ON* */
 

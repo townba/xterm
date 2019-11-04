@@ -1,4 +1,4 @@
-/* $XTermId: xterm.h,v 1.857 2019/09/20 00:58:49 Quinn.Strahl Exp $ */
+/* $XTermId: xterm.h,v 1.860 2019/10/06 20:02:14 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -397,6 +397,30 @@ extern char **environ;
 /* strftime format and length of the result */
 #define FMT_TIMESTAMP ".%Y.%m.%d.%H.%M.%S"
 #define LEN_TIMESTAMP sizeof(".YYYY.MM.DD.hh.mm.ss")
+
+/***====================================================================***/
+
+#if OPT_TRACE
+#undef NDEBUG			/* turn on assert's */
+#else
+#ifndef NDEBUG
+#define NDEBUG			/* not debugging, don't do assert's */
+#endif
+#endif
+
+#include <trace.h>
+
+#if OPT_TRACE && !defined(DEBUG)
+#define DEBUG 1
+#endif
+
+#ifdef DEBUG
+#define if_DEBUG(code) if(debug) code
+#else
+#define if_DEBUG(code) /*nothing*/
+#endif
+
+#define DEBUG_MSG(text) if_DEBUG({ IGNORE_RC(write(2, text, sizeof(text) - 1)); })
 
 /***====================================================================***/
 
@@ -941,6 +965,7 @@ extern void noleaks_cachedCgs (XtermWidget /* xw */);
 /* charproc.c */
 extern Bool CheckBufPtrs (TScreen * /* screen */);
 extern Bool set_cursor_gcs (XtermWidget /* xw */);
+extern char * vt100ResourceToString (XtermWidget /* xw */, const char * /* name */);
 extern int VTInit (XtermWidget /* xw */);
 extern void FindFontSelection (XtermWidget /* xw */, const char * /* atom_name */, Bool  /* justprobe */);
 extern void HideCursor (void);

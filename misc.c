@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.904 2019/09/23 00:17:44 tom Exp $ */
+/* $XTermId: misc.c,v 1.912 2019/10/06 20:01:39 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -4526,10 +4526,10 @@ do_dcs(XtermWidget xw, Char *dcsbuf, size_t dcslen)
 	    unparseputc(xw, ANSI_CAN);
 	}
 	break;
-#if OPT_TCAP_QUERY
     case '+':
 	cp++;
 	switch (*cp) {
+#if OPT_TCAP_QUERY
 	case 'p':
 	    if (AllowTcapOps(xw, etSetTcap)) {
 		set_termcap(xw, cp + 1);
@@ -4612,9 +4612,63 @@ do_dcs(XtermWidget xw, Char *dcsbuf, size_t dcslen)
 		unparseputc1(xw, ANSI_ST);
 	    }
 	    break;
+#endif
+#if OPT_XRES_QUERY
+	case 'Q':
+	    ++cp;
+	    if (AllowXResOps(xw)) {
+		Boolean first = True;
+		while (*cp != '\0') {
+		    const char *parsed = 0;
+		    const char *tmp;
+		    char *name = x_decode_hex(cp, &parsed);
+		    char *value;
+		    char *result;
+		    int code;
+		    if (cp == parsed || name == NULL)
+			break;	/* no data found, error */
+		    TRACE(("query-feature '%s'\n", name));
+		    if ((value = vt100ResourceToString(xw, name)) != 0) {
+			code = 0;
+		    } else {
+			code = 1;
+		    }
+		    if (first) {
+			unparseputc1(xw, ANSI_DCS);
+			unparseputc(xw, code >= 0 ? '1' : '0');
+			unparseputc(xw, '+');
+			unparseputc(xw, 'R');
+			first = False;
+		    }
+
+		    for (tmp = cp; tmp != parsed; ++tmp)
+			unparseputc(xw, *tmp);
+
+		    if (value != 0) {
+			unparseputc1(xw, '=');
+			result = x_encode_hex(value);
+			unparseputs(xw, result);
+		    } else {
+			result = NULL;
+		    }
+
+		    free(name);
+		    free(value);
+		    free(result);
+
+		    cp = parsed;
+		    if (*parsed == ';') {
+			unparseputc(xw, *parsed++);
+			cp = parsed;
+		    }
+		}
+		if (!first)
+		    unparseputc1(xw, ANSI_ST);
+	    }
+	    break;
+#endif
 	}
 	break;
-#endif
 #if OPT_DEC_RECTOPS
     case '1':
 	/* FALLTHRU */
@@ -5515,44 +5569,46 @@ ChangeGroup(XtermWidget xw, const char *attribute, char *value)
 	if (my_atom != None) {
 	    changed = True;
 
+	    if (IsSetUtf8Title(xw)) {
 #if OPT_SAME_NAME
-	    if (resource.sameName && IsSetUtf8Title(xw)) {
-		Atom actual_type;
-		Atom requested_type = XA_UTF8_STRING(dpy);
-		int actual_format = 0;
-		long long_length = 1024;
-		unsigned long nitems = 0;
-		unsigned long bytes_after = 0;
-		unsigned char *prop = 0;
+		if (resource.sameName) {
+		    Atom actual_type;
+		    Atom requested_type = XA_UTF8_STRING(dpy);
+		    int actual_format = 0;
+		    long long_length = 1024;
+		    unsigned long nitems = 0;
+		    unsigned long bytes_after = 0;
+		    unsigned char *prop = 0;
 
-		if (xtermGetWinProp(dpy,
-				    VShellWindow(xw),
-				    my_atom,
-				    0L,
-				    long_length,
-				    requested_type,
-				    &actual_type,
-				    &actual_format,
-				    &nitems,
-				    &bytes_after,
-				    &prop)
-		    && actual_type == requested_type
-		    && actual_format == 8
-		    && prop != 0
-		    && nitems == strlen(value)
-		    && memcmp(value, prop, nitems) == 0) {
-		    changed = False;
+		    if (xtermGetWinProp(dpy,
+					VShellWindow(xw),
+					my_atom,
+					0L,
+					long_length,
+					requested_type,
+					&actual_type,
+					&actual_format,
+					&nitems,
+					&bytes_after,
+					&prop)
+			&& actual_type == requested_type
+			&& actual_format == 8
+			&& prop != 0
+			&& nitems == strlen(value)
+			&& memcmp(value, prop, nitems) == 0) {
+			changed = False;
+		    }
 		}
-	    }
 #endif /* OPT_SAME_NAME */
-	    if (changed && IsSetUtf8Title(xw)) {
-		ReportIcons(("...updating %s\n", propname));
-		ReportIcons(("...value is %s\n", value));
-		XChangeProperty(dpy, VShellWindow(xw), my_atom,
-				XA_UTF8_STRING(dpy), 8,
-				PropModeReplace,
-				(Char *) value,
-				(int) strlen(value));
+		if (changed) {
+		    ReportIcons(("...updating %s\n", propname));
+		    ReportIcons(("...value is %s\n", value));
+		    XChangeProperty(dpy, VShellWindow(xw), my_atom,
+				    XA_UTF8_STRING(dpy), 8,
+				    PropModeReplace,
+				    (Char *) value,
+				    (int) strlen(value));
+		}
 	    } else {
 		ReportIcons(("...deleting %s\n", propname));
 		XDeleteProperty(dpy, VShellWindow(xw), my_atom);

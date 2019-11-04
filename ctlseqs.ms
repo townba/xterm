@@ -1,6 +1,6 @@
 .\"#! troff -ms $1		-*- Nroff -*-
 .\" "Xterm Control Sequences" document
-.\" $XTermId: ctlseqs.ms,v 1.513 2019/07/11 09:52:42 tom Exp $
+.\" $XTermId: ctlseqs.ms,v 1.561 2019/11/02 14:26:14 tom Exp $
 .\"
 .\"
 .\" Copyright 1996-2018,2019 by Thomas E. Dickey
@@ -69,8 +69,8 @@
 .\"
 .ds XT XTerm
 .ds xt xterm
-.ds LF Patch #348
-.ds RF 2019/07/11
+.ds LF Patch #350
+.ds RF 2019/11/02
 .\"
 .if n .pl 9999v		\" no page breaks in nroff
 .ND
@@ -126,8 +126,6 @@
 .br
 ..
 .\" Escape single quotes in literal strings from groff's Unicode transform.
-.ie \n(.g .ds AQ \(aq
-.el       .ds AQ '
 .ie \n(.g .ds `` \(lq
 .el       .ds `` ``
 .ie \n(.g .ds '' \(rq
@@ -193,6 +191,7 @@
 .[] Lf \v'-1p'\s\nsLF\s0\v'1p'
 .[] Vt \v'-1p'\s\nsVT\s0\v'1p'
 .[] Ff \v'-1p'\s\nsFF\s0\v'1p'
+.[] Np \v'-1p'\s\nsNP\s0\v'1p'
 .[] Cr \v'-1p'\s\nsCR\s0\v'1p'
 .[] So \v'-1p'\s\nsSO\s0\v'1p'
 .[] Sp \v'-1p'\s\nsSP\s0\v'1p'
@@ -265,7 +264,6 @@
 .[] { {
 .[] ~ \(ti
 .[] Dq \(dq
-.[] ] ]
 .[] & &
 .[] ^ \(ha
 .[] _ _
@@ -300,8 +298,6 @@
 .[] | |
 .[] } }
 .[] ! !
-.[] c" \(lq
-.[] Sc \fIc\fP
 .ds Cc \fIC\fP
 .ds Cb \fIC\v'.3m'\h'-.2m'\s-2b\s0\v'-.3m'\fP
 .ds Cx \fIC\v'.3m'\h'-.2m'\s-2x\s0\v'-.3m'\fP
@@ -358,9 +354,11 @@ updated for \*(XT \*(LF (\*(RF)
 .ds CF %
 ..
 .Sh "Definitions"
-.\".iP
-.IP \*(Sc
-The literal character \fIc\fP.
+.LP
+Many controls use parameters, shown in italics.
+If a control uses a single parameter, only one parameter name is listed.
+Some parameters (along with separating \*; characters) may be optional.
+Other characters in the control are required.
 .\".iP
 .IP \*(Cc
 A single (required) character.
@@ -369,8 +367,7 @@ A single (required) character.
 A single (usually optional) numeric parameter, composed of one or more digits.
 .\".iP
 .IP \*(Pm
-A multiple numeric parameter composed of any number of single numeric
-parameters, separated by \*; character(s).
+Any number of single numeric parameters, separated by \*; character(s).
 Individual values for the parameters are listed with \*(Ps .
 .\".iP
 .IP \*(Pt
@@ -551,25 +548,25 @@ Many of the features are optional;
 .Ss Single-character functions
 .St
 .IP \\*(Be
-Bell (Ctrl-G).
+Bell (\*(Be is Ctrl-G).
 .
 .iP
 .IP \\*(Bs
-Backspace (Ctrl-H).
+Backspace (\*(Bs is Ctrl-H).
 .
 .iP
 .IP \\*(Cr
-Carriage Return (Ctrl-M).
+Carriage Return (\*(Cr is Ctrl-M).
 .
 .iP
 .IP \\*(En
-Return Terminal Status (Ctrl-E).
+Return Terminal Status (\*(En is Ctrl-E).
 Default response is an empty string, but may be overridden
 by a resource \fBanswerbackString\fP.
 .
 .iP
 .IP \\*(Ff
-Form Feed or New Page (NP).
+Form Feed or New Page (\*(Np).
 (\*(Ff is Ctrl-L).
 \*(Ff is treated the same as \*(Lf.
 .
@@ -598,11 +595,11 @@ Space.
 .
 .iP
 .IP \\*(Ta
-Horizontal Tab (HT) (Ctrl-I).
+Horizontal Tab (\*(Ht is Ctrl-I).
 .
 .iP
 .IP \\*(Vt
-Vertical Tab (Ctrl-K).
+Vertical Tab (\*(Vt is Ctrl-K).
 This is treated the same as LF.
 .Ed
 .
@@ -628,15 +625,15 @@ configured for VT100 mode.
 .
 .iP
 .IP \\*(Es\\*(Sp\\*L
-Set ANSI conformance level 1 (dpANS X3.134.1).
+Set ANSI conformance level 1, ECMA-43.
 .
 .iP
 .IP \\*(Es\\*(Sp\\*M
-Set ANSI conformance level 2 (dpANS X3.134.1).
+Set ANSI conformance level 2, ECMA-43.
 .
 .iP
 .IP \\*(Es\\*(Sp\\*N
-Set ANSI conformance level 3 (dpANS X3.134.1).
+Set ANSI conformance level 3, ECMA-43.
 .
 .iP
 .IP \\*(Es\\*#\\*3
@@ -698,20 +695,20 @@ initially mapped to GL and GR.
 The valid final characters \*(Cc for this control are:
   \*(Cc = \*A \(-> United Kingdom (UK), VT100.
   \*(Cc = \*(cB \(-> United States (USASCII), VT100.
-  \*(Cc = \*4 \(-> Dutch, VT200.
   \*(Cc = \*C or \*5 \(-> Finnish, VT200.
-  \*(Cc = \*R or \*f \(-> French, VT200.
-  \*(Cc = \*Q or \*9 \(-> French Canadian, VT200.
-  \*(Cc = \*K \(-> German, VT200.
-  \*(Cc = \*(Dq\*> \(-> Greek, VT500.
-  \*(Cc = \*%\*= \(-> Hebrew, VT500.
-  \*(Cc = \*Y \(-> Italian, VT200.
-  \*(Cc = \*`, \*E or \*6 \(-> Norwegian/Danish, VT200.
-  \*(Cc = \*%\*6 \(-> Portuguese, VT300.
-  \*(Cc = \*Z \(-> Spanish, VT200.
   \*(Cc = \*H or \*7 \(-> Swedish, VT200.
-  \*(Cc = \*= \(-> Swiss, VT200.
+  \*(Cc = \*K \(-> German, VT200.
+  \*(Cc = \*Q or \*9 \(-> French Canadian, VT200.
+  \*(Cc = \*R or \*f \(-> French, VT200.
+  \*(Cc = \*Y \(-> Italian, VT200.
+  \*(Cc = \*Z \(-> Spanish, VT200.
+  \*(Cc = \*4 \(-> Dutch, VT200.
+  \*(Cc = \*(Dq\*> \(-> Greek, VT500.
   \*(Cc = \*%\*2 \(-> Turkish, VT500.
+  \*(Cc = \*%\*6 \(-> Portuguese, VT300.
+  \*(Cc = \*%\*= \(-> Hebrew, VT500.
+  \*(Cc = \*= \(-> Swiss, VT200.
+  \*(Cc = \*`, \*E or \*6 \(-> Norwegian/Danish, VT200.
 .br
 The final character \*A is a special case,
 since the same final character is
@@ -723,16 +720,16 @@ There are a few other 94-character sets:
   \*(Cc = \*> \(-> DEC Technical, VT300.
 .br
 These are documented as NRCS:
+  \*(Cc = \*(Dq\*4 \(-> DEC Hebrew, VT500.
+  \*(Cc = \*(Dq\*? \(-> DEC Greek, VT500.
+  \*(Cc = \*%\*0 \(-> DEC Turkish, VT500.
   \*(Cc = \*%\*5 \(-> DEC Supplemental Graphics, VT300.
   \*(Cc = \*&\*4 \(-> DEC Cyrillic, VT500.
-  \*(Cc = \*(Dq\*? \(-> DEC Greek, VT500.
-  \*(Cc = \*(Dq\*4 \(-> DEC Hebrew, VT500.
-  \*(Cc = \*%\*0 \(-> DEC Turkish, VT500.
 .br
 The VT520 reference manual lists a few more,
 but no documentation has been found for the mappings:
-  \*(Cc = \*&\*5 \(-> DEC Russian, VT500.
   \*(Cc = \*%\*3 \(-> SCS NRCS, VT500.
+  \*(Cc = \*&\*5 \(-> DEC Russian, VT500.
 .iP
 .IP \\*(Es\\*)\\*(Cc
 Designate G1 Character Set, ISO 2022, VT100.
@@ -759,11 +756,11 @@ These controls apply only to 96-character sets.
 Unlike the 94-character sets, these can have different values than
 ASCII space and DEL for the mapping of 0x20 and 0x7f.
 The valid final characters \*(Cc for this control are:
-  \*(Cc = \*A \(-> ISO Latin-1 Supplemental (VT300).
-  \*(Cc = \*F \(-> ISO Greek Supplemental (VT500).
-  \*(Cc = \*H \(-> ISO Hebrew Supplemental (VT500).
-  \*(Cc = \*L \(-> ISO Latin-Cyrillic (VT500).
-  \*(Cc = \*M \(-> ISO Latin-5 Supplemental (VT500).
+  \*(Cc = \*A \(-> ISO Latin-1 Supplemental, VT300.
+  \*(Cc = \*F \(-> ISO Greek Supplemental, VT500.
+  \*(Cc = \*H \(-> ISO Hebrew Supplemental, VT500.
+  \*(Cc = \*L \(-> ISO Latin-Cyrillic, VT500.
+  \*(Cc = \*M \(-> ISO Latin-5 Supplemental, VT500.
 .
 .iP
 .IP \\*(Es\\*.\\*(Cc
@@ -871,9 +868,9 @@ Request Status String (DECRQSS), VT420 and up.
 .br
 The string following the \*(``q\*('' is one of the following:
   \*m		\(-> SGR
-  \*(c"\*p	\(-> DECSCL
+  \*(Dq\*p	\(-> DECSCL
   \*(Sp\*q	\(-> DECSCUSR
-  \*(c"\*q	\(-> DECSCA
+  \*(Dq\*q	\(-> DECSCA
   \*r		\(-> DECSTBM
   \*(cs		\(-> DECSLRM
   \*t		\(-> DECSLPP
@@ -896,8 +893,30 @@ by changing the first \*(``u\*('' to a \*(``t\*(''
   \*(Ps = \*2 \(-> DECTABSR
 .
 .iP
+.IP \\*(Dc\\*+\\*Q\\*(Pt\\*s\\*(ST
+Request resource values (XTGETXRES), \fI\*(xt\fP.
+The string following the \*(``Q\*('' is a list of names
+encoded in hexadecimal (2 digits per character)
+separated by \*;
+which correspond to \fI\*(xt\fP resource names.
+Only boolean, numeric and string resources are supported by this query.
+.sP
+\fI\*(xt\fP responds with
+.br
+\*(Dc\*1\*+\*R\*(Pt\*s\*(ST
+for valid requests, adding to \*(Pt an \*=,
+and the value of the corresponding resource that \fI\*(xt\fP is using,
+or
+.br
+\*(Dc\*0\*+\*R\*(Pt\*s\*(ST
+for invalid requests.
+.br
+The strings are encoded in hexadecimal (2 digits per character).
+.Ed
+.
+.iP
 .IP \\*(Dc\\*+\\*p\\*(Pt\\*s\\*(ST
-Set Termcap/Terminfo Data (\fI\*(xt\fP).
+Set Termcap/Terminfo Data (XTSETTCAP), \fI\*(xt\fP.
 The string following the \*(``p\*('' is a name to use for retrieving data from
 the terminal database.
 The data will be used for the \*(``tcap\*('' keyboard
@@ -906,7 +925,7 @@ Request Termcap/Terminfo String control.
 .
 .iP
 .IP \\*(Dc\\*+\\*q\\*(Pt\\*s\\*(ST
-Request Termcap/Terminfo String (\fI\*(xt\fP).
+Request Termcap/Terminfo String (XTGETTCAP), \fI\*(xt\fP.
 The string following the \*(``q\*('' is a list of names
 encoded in hexadecimal (2 digits per character)
 separated by \*;
@@ -925,7 +944,7 @@ and
 Only a terminfo name is provided,
 since termcap applications cannot use this information.
 .RE
-.br
+.sP
 \fI\*(xt\fP responds with
 .br
 \*(Dc\*1\*+\*r\*(Pt\*s\*(ST
@@ -994,7 +1013,7 @@ Erase in Display (ED), VT100.
   \*(Ps = \*0 \(-> Erase Below (default).
   \*(Ps = \*1 \(-> Erase Above.
   \*(Ps = \*2 \(-> Erase All.
-  \*(Ps = \*3 \(-> Erase Saved Lines (\fI\*(xt\fP).
+  \*(Ps = \*3 \(-> Erase Saved Lines, \fI\*(xt\fP.
 .
 .iP
 .IP \\*(Cs\\*?\\*(Ps\\*s\\*J
@@ -1002,7 +1021,7 @@ Erase in Display (DECSED), VT220.
   \*(Ps = \*0 \(-> Selective Erase Below (default).
   \*(Ps = \*1 \(-> Selective Erase Above.
   \*(Ps = \*2 \(-> Selective Erase All.
-  \*(Ps = \*3 \(-> Selective Erase Saved Lines (\fI\*(xt\fP).
+  \*(Ps = \*3 \(-> Selective Erase Saved Lines, \fI\*(xt\fP.
 .
 .iP
 .IP \\*(Cs\\*(Ps\\*s\\*K
@@ -1036,6 +1055,7 @@ Scroll up \*(Ps lines (default = 1) (SU), VT420, ECMA-48.
 .
 .iP
 .IP \\*(Cs\\*?\\*(Pi\\*s\\*;\\*(Pa\\*s\\*;\\*(Pv\\*s\\*S
+Set or request graphics attribute, \fI\*(xt\fP.
 If configured to support either \fBSixel Graphics\fP or \fBReGIS Graphics\fP,
 \fI\*(xt\fP accepts a three-parameter control sequence, where \*(Pi,
 \*(Pa and \*(Pv are the \fIitem\fP, \fIaction\fP and \fIvalue\fP:
@@ -1044,10 +1064,10 @@ If configured to support either \fBSixel Graphics\fP or \fBReGIS Graphics\fP,
   \*(Pi = \*2 \(-> item is Sixel graphics geometry (in pixels).
   \*(Pi = \*3 \(-> item is ReGIS graphics geometry (in pixels).
 .sP
-  \*(Pa = \*1 \(-> read
-  \*(Pa = \*2 \(-> reset to default
-  \*(Pa = \*3 \(-> set to value in \*(Pv
-  \*(Pa = \*4 \(-> read the maximum allowed value
+  \*(Pa = \*1 \(-> read attribute.
+  \*(Pa = \*2 \(-> reset to default.
+  \*(Pa = \*3 \(-> set to value in \*(Pv.
+  \*(Pa = \*4 \(-> read the maximum allowed value.
 .sP
   \*(Pv can be omitted except when setting (\*(Pa == \*3).
   \*(Pv = \fIn\fP \(<- A single integer is used for color registers.
@@ -1058,10 +1078,10 @@ If configured to support either \fBSixel Graphics\fP or \fBReGIS Graphics\fP,
 \*(Cs\*?\*(Pi\*s\*;\*(Ps\*s\*;\*(Pv\*s\*S
 .DE
 where \*(Ps is the status:
-  \*(Ps = \*0 \(-> success.
-  \*(Ps = \*1 \(-> error in \*(Pi.
-  \*(Ps = \*2 \(-> error in \*(Pa.
-  \*(Ps = \*3 \(-> failure.
+  \*(Ps = \*0 \(<- success.
+  \*(Ps = \*1 \(<- error in \*(Pi.
+  \*(Ps = \*2 \(<- error in \*(Pa.
+  \*(Ps = \*3 \(<- failure.
 .sP
 On success, \*(Pv represents the value read or set.
 .sP
@@ -1094,8 +1114,8 @@ Parameters are [func;startx;starty;firstrow;lastrow].
 See the section \fBMouse Tracking\fP.
 .
 .iP
-.IP \\*(Cs\\*>\\*(Ps\\*s\\*;\\*(Ps\\*s\\*T
-Reset one or more features of the title modes to the default value.
+.IP \\*(Cs\\*>\\*(Pm\\*s\\*T
+Reset title mode features to default value, \fI\*(xt\fP.
 Normally, \*(``reset\*('' disables the feature.
 It is possible to disable the ability to reset features
 by compiling a different default for the title modes into \fI\*(xt\fP.
@@ -1190,13 +1210,13 @@ where \*(Pp denotes the terminal type
   \*(Pp = \*0 \(-> \*(``VT100\*(''.
   \*(Pp = \*1 \(-> \*(``VT220\*(''.
   \*(Pp = \*2 \(-> \*(``VT240\*(''.
-  \*(Pp = \*18 \(-> \*(``VT330\*(''.
-  \*(Pp = \*19 \(-> \*(``VT340\*(''.
-  \*(Pp = \*24 \(-> \*(``VT320\*(''.
-  \*(Pp = \*41 \(-> \*(``VT420\*(''.
-  \*(Pp = \*61 \(-> \*(``VT510\*(''.
-  \*(Pp = \*64 \(-> \*(``VT520\*(''.
-  \*(Pp = \*65 \(-> \*(``VT525\*(''.
+  \*(Pp = \*1\*8 \(-> \*(``VT330\*(''.
+  \*(Pp = \*1\*9 \(-> \*(``VT340\*(''.
+  \*(Pp = \*2\*4 \(-> \*(``VT320\*(''.
+  \*(Pp = \*4\*1 \(-> \*(``VT420\*(''.
+  \*(Pp = \*6\*1 \(-> \*(``VT510\*(''.
+  \*(Pp = \*6\*4 \(-> \*(``VT520\*(''.
+  \*(Pp = \*6\*5 \(-> \*(``VT525\*(''.
 .iP
 and \*(Pv is the firmware version (for \fI\*(xt\fP, this was originally
 the XFree86 patch number, starting with 95).
@@ -1265,26 +1285,27 @@ This is normally disabled by a compile-time option.
   \*(Ps = \*4\*7 \(-> Use \fIAlternate Screen Buffer\fP, \fI\*(xt\fP.
 This may be disabled by the \fBtiteInhibit\fP resource.
   \*(Ps = \*6\*6 \(-> Application keypad (DECNKM), VT320.
-  \*(Ps = \*6\*7 \(-> Backarrow key sends backspace (DECBKM), VT340, VT420.
+  \*(Ps = \*6\*7 \(-> Backarrow key sends backspace (DECBKM), VT340, VT420.  This sets the \fBbackarrowKey\fP resource to \*(``true\*(''.
   \*(Ps = \*6\*9 \(-> Enable left and right margin mode (DECLRMM), VT420 and up.
+  \*(Ps = \*8\*0 \(-> Enable \fISixel Scrolling\fP (DECSDM).
   \*(Ps = \*9\*5 \(-> Do not clear screen when DECCOLM is set/reset
 (DECNCSM), VT510 and up.
   \*(Ps = \*1\*0\*0\*0 \(-> Send Mouse X & Y on button press and release.
 See the section \fBMouse Tracking\fP.
 This is the X11 \fI\*(xt\fP mouse protocol.
   \*(Ps = \*1\*0\*0\*1 \(-> Use Hilite Mouse Tracking, \fI\*(xt\fP.
-  \*(Ps = \*1\*0\*0\*2 \(-> Use Cell Motion (button event) Mouse Tracking, \fI\*(xt\fP.
-  \*(Ps = \*1\*0\*0\*3 \(-> Use All Motion (any event) Mouse Tracking, \fI\*(xt\fP.
-  \*(Ps = \*1\*0\*0\*4 \(-> Send FocusIn/FocusOut events, \fI\*(xt\fP.
+  \*(Ps = \*1\*0\*0\*2 \(-> Use Cell Motion Mouse Tracking, \fI\*(xt\fP.  See the section \fBButton-event tracking\fP.
+  \*(Ps = \*1\*0\*0\*3 \(-> Use All Motion Mouse Tracking, \fI\*(xt\fP.  See the section \fBAny-event tracking\fP.
+  \*(Ps = \*1\*0\*0\*4 \(-> Send \fBFocusIn/FocusOut\fP events, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*0\*5 \(-> Enable UTF-8 Mouse Mode, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*0\*6 \(-> Enable SGR Mouse Mode, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*0\*7 \(-> Enable \fIAlternate Scroll Mode\fP, \fI\*(xt\fP.
 This corresponds to the \fBalternateScroll\fP resource.
-  \*(Ps = \*1\*0\*1\*0 \(-> Scroll to bottom on tty output (rxvt).
-  \*(Ps = \*1\*0\*1\*1 \(-> Scroll to bottom on key press (rxvt).
+  \*(Ps = \*1\*0\*1\*0 \(-> Scroll to bottom on tty output (rxvt).  This sets the \fBscrollTtyOutput\fP resource to \*(``true\*(''.
+  \*(Ps = \*1\*0\*1\*1 \(-> Scroll to bottom on key press (rxvt).  This sets the \fBscrollKey\fP resource to \*(``true\*(''.
   \*(Ps = \*1\*0\*1\*5 \(-> Enable urxvt Mouse Mode.
   \*(Ps = \*1\*0\*3\*4 \(-> Interpret \*(``meta\*('' key, \fI\*(xt\fP.
-This sets eighth bit of keyboard input
+This sets the eighth bit of keyboard input
 (and enables the \fBeightBitInput\fP resource).
   \*(Ps = \*1\*0\*3\*5 \(-> Enable special modifiers for Alt and NumLock keys,
 \fI\*(xt\fP.
@@ -1326,7 +1347,7 @@ Use this with terminfo-based applications rather than the \*4\*7 mode.
   \*(Ps = \*1\*0\*5\*1 \(-> Set Sun function-key mode, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*5\*2 \(-> Set HP function-key mode, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*5\*3 \(-> Set SCO function-key mode, \fI\*(xt\fP.
-  \*(Ps = \*1\*0\*6\*0 \(-> Set legacy keyboard emulation (i.e, X11R6),
+  \*(Ps = \*1\*0\*6\*0 \(-> Set legacy keyboard emulation, i.e, X11R6,
 \fI\*(xt\fP.
   \*(Ps = \*1\*0\*6\*1 \(-> Set VT220 keyboard emulation, \fI\*(xt\fP.
   \*(Ps = \*2\*0\*0\*4 \(-> Set bracketed paste mode, \fI\*(xt\fP.
@@ -1388,24 +1409,25 @@ VT220.
 This is normally disabled by a compile-time option.
   \*(Ps = \*4\*7 \(-> Use Normal Screen Buffer, \fI\*(xt\fP.
   \*(Ps = \*6\*6 \(-> Numeric keypad (DECNKM), VT320.
-  \*(Ps = \*6\*7 \(-> Backarrow key sends delete (DECBKM), VT340, VT420.
+  \*(Ps = \*6\*7 \(-> Backarrow key sends delete (DECBKM), VT340, VT420.  This sets the \fBbackarrowKey\fP resource to \*(``false\*(''.
   \*(Ps = \*6\*9 \(-> Disable left and right margin mode (DECLRMM),
 VT420 and up.
+  \*(Ps = \*8\*0 \(-> Disable \fISixel Scrolling\fP (DECSDM).
   \*(Ps = \*9\*5 \(-> Clear screen when DECCOLM is set/reset (DECNCSM),
 VT510 and up.
   \*(Ps = \*1\*0\*0\*0 \(-> Don't send Mouse X & Y on button press and
 release.
 See the section \fBMouse Tracking\fP.
   \*(Ps = \*1\*0\*0\*1 \(-> Don't use Hilite Mouse Tracking, \fI\*(xt\fP.
-  \*(Ps = \*1\*0\*0\*2 \(-> Don't use Cell Motion (button event) Mouse Tracking, \fI\*(xt\fP.
-  \*(Ps = \*1\*0\*0\*3 \(-> Don't use All Motion (any event) Mouse Tracking, \fI\*(xt\fP.
-  \*(Ps = \*1\*0\*0\*4 \(-> Don't send FocusIn/FocusOut events, \fI\*(xt\fP.
+  \*(Ps = \*1\*0\*0\*2 \(-> Don't use Cell Motion Mouse Tracking, \fI\*(xt\fP.  See the section \fBButton-event tracking\fP.
+  \*(Ps = \*1\*0\*0\*3 \(-> Don't use All Motion Mouse Tracking, \fI\*(xt\fP.  See the section \fBAny-event tracking\fP.
+  \*(Ps = \*1\*0\*0\*4 \(-> Don't send \fBFocusIn/FocusOut\fP events, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*0\*5 \(-> Disable UTF-8 Mouse Mode, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*0\*6 \(-> Disable SGR Mouse Mode, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*0\*7 \(-> Disable \fIAlternate Scroll Mode\fP, \fI\*(xt\fP.
 This corresponds to the \fBalternateScroll\fP resource.
-  \*(Ps = \*1\*0\*1\*0 \(-> Don't scroll to bottom on tty output (rxvt).
-  \*(Ps = \*1\*0\*1\*1 \(-> Don't scroll to bottom on key press (rxvt).
+  \*(Ps = \*1\*0\*1\*0 \(-> Don't scroll to bottom on tty output (rxvt).  This sets the \fBscrollTtyOutput\fP resource to \*(``false\*(''.
+  \*(Ps = \*1\*0\*1\*1 \(-> Don't scroll to bottom on key press (rxvt).  This sets the \fBscrollKey\fP resource to \*(``false\*(''.
   \*(Ps = \*1\*0\*1\*5 \(-> Disable urxvt Mouse Mode.
   \*(Ps = \*1\*0\*3\*4 \(-> Don't interpret \*(``meta\*('' key, \fI\*(xt\fP.
 This disables the \fBeightBitInput\fP resource.
@@ -1446,15 +1468,12 @@ as in DECRC, \fI\*(xt\fP.
 This may be disabled by the \fBtiteInhibit\fP resource.
 This combines the effects of the \*1\*0\*4\*7 and \*1\*0\*4\*8 modes.
 Use this with terminfo-based applications rather than the \*4\*7 mode.
-  \*(Ps = \*1\*0\*5\*0 \(-> Reset terminfo/termcap function-key mode,
-\fI\*(xt\fP.
+  \*(Ps = \*1\*0\*5\*0 \(-> Reset terminfo/termcap function-key mode, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*5\*1 \(-> Reset Sun function-key mode, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*5\*2 \(-> Reset HP function-key mode, \fI\*(xt\fP.
   \*(Ps = \*1\*0\*5\*3 \(-> Reset SCO function-key mode, \fI\*(xt\fP.
-  \*(Ps = \*1\*0\*6\*0 \(-> Reset legacy keyboard emulation (i.e, X11R6),
-\fI\*(xt\fP.
-  \*(Ps = \*1\*0\*6\*1 \(-> Reset keyboard emulation to Sun/PC style,
-\fI\*(xt\fP.
+  \*(Ps = \*1\*0\*6\*0 \(-> Reset legacy keyboard emulation, i.e, X11R6, \fI\*(xt\fP.
+  \*(Ps = \*1\*0\*6\*1 \(-> Reset keyboard emulation to Sun/PC style, \fI\*(xt\fP.
   \*(Ps = \*2\*0\*0\*4 \(-> Reset bracketed paste mode, \fI\*(xt\fP.
 .
 .iP
@@ -1571,46 +1590,60 @@ These ISO-8613-6 controls (marked in ECMA-48 5th edition as
 \*(``reserved for future standardization\*('')
 are supported by \fI\*(xt\fP:
   \*(Pm = \*3\*8\*;\*2\*;\*(Pi\*s\*;\*(Pr\*s\*;\*(Pg\*s\*;\*(Pb \(-> Set foreground
-color to the closest match in \fI\*(xt\fP's palette
+color using RGB values.
+If \fI\*(xt\fP is not compiled with direct-color support,
+it uses the closest match in its palette
 for the given RGB \*(Pr/\*(Pg/\*(Pb.
 The color space identifier \*(Pi is ignored.
-  \*(Pm = \*3\*8\*;\*5\*;\*(Ps \(-> Set foreground color to \*(Ps.
+  \*(Pm = \*3\*8\*;\*5\*;\*(Ps \(-> Set foreground color to \*(Ps,
+using indexed color.
   \*(Pm = \*4\*8\*;\*2\*;\*(Pi\*s\*;\*(Pr\*s\*;\*(Pg\*s\*;\*(Pb \(-> Set background
-color to the closest match in \fI\*(xt\fP's palette
+color using RGB values.
+If \fI\*(xt\fP is not compiled with direct-color support,
+it uses the closest match in its palette
 for the given RGB \*(Pr/\*(Pg/\*(Pb.
 The color space identifier \*(Pi is ignored.
-  \*(Pm = \*4\*8\*;\*5\*;\*(Ps \(-> Set background color to \*(Ps.
+  \*(Pm = \*4\*8\*;\*5\*;\*(Ps \(-> Set background color to \*(Ps,
+using indexed color.
 .sP
 This variation on ISO-8613-6 is supported for compatibility with KDE konsole:
   \*(Pm = \*3\*8\*;\*2\*;\*(Pr\*s\*;\*(Pg\*s\*;\*(Pb \(-> Set foreground color
-to the closest match in \fI\*(xt\fP's palette
+using RGB values.
+If \fI\*(xt\fP is not compiled with direct-color support,
+it uses the closest match in its palette
 for the given RGB \*(Pr/\*(Pg/\*(Pb.
   \*(Pm = \*4\*8\*;\*2\*;\*(Pr\*s\*;\*(Pg\*s\*;\*(Pb \(-> Set background color
-to the closest match in \fI\*(xt\fP's palette
+using RGB values.
+If \fI\*(xt\fP is not compiled with direct-color support,
+it uses the closest match in its palette
 for the given RGB \*(Pr/\*(Pg/\*(Pb.
 .sP
-If \fI\*(xt\fP is compiled with direct-color support,
+In each case,
+if \fI\*(xt\fP is compiled with direct-color support,
 and the resource \fBdirectColor\fP is true, then
 rather than choosing the closest match,
 \fI\*(xt\fP asks the X server to directly render a given color.
 .
 .iP
-.IP \\*(Cs\\*>\\*(Ps\\*s\\*;\\*(Ps\\*s\\*m
+.IP \\*(Cs\\*>\\*(Pp\\*s\\*;\*(Pv\\*s\\*m
+.IP \\*(Cs\\*>\\*(Pp\\*s\\*m
+Set/reset key modifier options, \fI\*(xt\fP.
 Set or reset resource-values used by \fI\*(xt\fP to decide whether to
 construct escape sequences holding information about the modifiers
 pressed with a given key.
 .iP
 .IP
-The first parameter identifies the resource to set/reset.
-The second parameter is the value to assign to the resource.
+The first parameter \*(Pp identifies the resource to set/reset.
+The second parameter \*(Pv is the value to assign to the resource.
 .iP
 .IP
 If the second parameter is omitted, the resource is reset to its initial value.
+Values \*3 and \*5 are reserved for keypad-keys and string-keys.
 .iP
-  \*(Ps = \*0 \(-> modifyKeyboard.
-  \*(Ps = \*1 \(-> modifyCursorKeys.
-  \*(Ps = \*2 \(-> modifyFunctionKeys.
-  \*(Ps = \*4 \(-> modifyOtherKeys.
+  \*(Pp = \*0 \(-> \fBmodifyKeyboard\fP.
+  \*(Pp = \*1 \(-> \fBmodifyCursorKeys\fP.
+  \*(Pp = \*2 \(-> \fBmodifyFunctionKeys\fP.
+  \*(Pp = \*4 \(-> \fBmodifyOtherKeys\fP.
 .iP
 .IP
 If no parameters are given, all resources are reset to their initial values.
@@ -1644,41 +1677,53 @@ The \fBmodifyFunctionKeys\fP and \fBmodifyKeyboard\fP resources
 can change the form of the string sent from the modified F1 key.
 .
 .iP
-.IP \\*(Cs\\*>\\*(Ps\\*s\\*n
-Disable modifiers which may be enabled via the
-\*(Cs\*>\*(Ps\*;\*(Ps\*s\*m
+.IP \\*(Cs\\*>\\*(Pm\\*s\\*n
+Disable key modifier options, \fI\*(xt\fP.
+These modifiers may be enabled via the
+\*(Cs\*>\*(Pm\*s\*m
 sequence.
-This corresponds to a resource value of \*(``\-1\*('',
+This control sequence corresponds to a resource value of \*(``\-1\*('',
 which cannot be set with the other sequence.
 .iP
 .IP
 The parameter identifies the resource to be disabled:
 .iP
-  \*(Ps = \*0 \(-> modifyKeyboard.
-  \*(Ps = \*1 \(-> modifyCursorKeys.
-  \*(Ps = \*2 \(-> modifyFunctionKeys.
-  \*(Ps = \*4 \(-> modifyOtherKeys.
+  \*(Ps = \*0 \(-> \fBmodifyKeyboard\fP.
+  \*(Ps = \*1 \(-> \fBmodifyCursorKeys\fP.
+  \*(Ps = \*2 \(-> \fBmodifyFunctionKeys\fP.
+  \*(Ps = \*4 \(-> \fBmodifyOtherKeys\fP.
 .iP
 If the parameter is omitted, \fBmodifyFunctionKeys\fP is disabled.
 When \fBmodifyFunctionKeys\fP is disabled, \fI\*(xt\fP uses the
-modifier keys to make an extended sequence of functions rather
+modifier keys to make an extended sequence of function keys rather
 than adding a parameter to each function key to denote the modifiers.
 .
 .iP
 .IP \\*(Cs\\*?\\*(Ps\\*s\\*n
 Device Status Report (DSR, DEC-specific).
-  \*(Ps = \*6 \(-> Report Cursor Position (DECXCPR) [row;column] as
+  \*(Ps = \*6 \(-> Report Cursor Position (DECXCPR).
+The response [row;column] is returned as
+.br
 \*(Cs\*?\*(Ir\*s\*;\*(Ic\*s\*R
+.br
 (assumes the default page, i.e., \*(``1\*('').
-  \*(Ps = \*1\*5 \(-> Report Printer status as
+  \*(Ps = \*1\*5 \(-> Report Printer status.
+The response is
+.br
 \*(Cs\*?\*1\*0\*n (ready).
 or
+.br
 \*(Cs\*?\*1\*1\*n (not ready).
-  \*(Ps = \*2\*5 \(-> Report UDK status as
+  \*(Ps = \*2\*5 \(-> Report UDK status.
+The response is
+.br
 \*(Cs\*?\*2\*0\*n (unlocked)
+.br
 or
+.br
 \*(Cs\*?\*2\*1\*n (locked).
-  \*(Ps = \*2\*6 \(-> Report Keyboard status as
+  \*(Ps = \*2\*6 \(-> Report Keyboard status.
+The response is
 .br
 \*(Cs\*?\*2\*7\*;\*1\*;\*0\*;\*0\*n (North American).
 .iP
@@ -1686,30 +1731,37 @@ or
 The last two parameters apply to VT300 & up (keyboard ready) and
 VT400 & up (LK01) respectively.
 .iP
-  \*(Ps = \*5\*3 \(-> Report Locator status as
+  \*(Ps = \*5\*3 \(-> Report Locator status.
+The response is
 \*(Cs\*?\*5\*3\*n Locator available, if compiled-in, or
 \*(Cs\*?\*5\*0\*n No Locator, if not.
-  \*(Ps = \*5\*5 \(-> Report Locator status as
+  \*(Ps = \*5\*5 \(-> Report Locator status.
+The response is
 \*(Cs\*?\*5\*3\*n Locator available, if compiled-in, or
 \*(Cs\*?\*5\*0\*n No Locator, if not.
-  \*(Ps = \*5\*6 \(-> Report Locator type as
+  \*(Ps = \*5\*6 \(-> Report Locator type.
+The response is
 \*(Cs\*?\*5\*7\*;\*1\*n Mouse, if compiled-in, or
 \*(Cs\*?\*5\*7\*;\*0\*n Cannot identify, if not.
-  \*(Ps = \*6\*2 \(-> Report macro space (DECMSR) as
+  \*(Ps = \*6\*2 \(-> Report macro space (DECMSR).
+The response is
 \*(Cs\*(Pn\*s\**\*s\*{.
-  \*(Ps = \*6\*3 \(-> Report memory checksum (DECCKSR) as
+  \*(Ps = \*6\*3 \(-> Report memory checksum (DECCKSR).
+The response is
 \*(Dc\*(Pt\*s\*!x\*sx\*sx\*sx\*s\*(ST.
 .br
     \*(Pt is the request id (from an optional parameter to the request).
     The x's are hexadecimal digits 0-9 and A-F.
-  \*(Ps = \*7\*5 \(-> Report data integrity as
+  \*(Ps = \*7\*5 \(-> Report data integrity.
+The response is
 \*(Cs\*?\*7\*0\*n (ready, no errors).
-  \*(Ps = \*8\*5 \(-> Report multi-session configuration as
+  \*(Ps = \*8\*5 \(-> Report multi-session configuration.
+The response is
 \*(Cs\*?\*8\*3\*n (not configured for multiple-session operation).
 .
 .iP
 .IP \\*(Cs\\*>\\*(Ps\\*s\\*p
-Set resource value \fIpointerMode\fP.
+Set resource value \fBpointerMode\fP.
 This is used by \fI\*(xt\fP to decide whether to
 hide the pointer cursor as the user types.
 .iP
@@ -1727,23 +1779,23 @@ which is \*1.
 Soft terminal reset (DECSTR), VT220 and up.
 .
 .iP
-.IP \\*(Cs\\*(Ps\\*s\\*;\\*(Ps\\*s\\*(c"\\*p
+.IP \\*(Cs\\*(Pl\\*s\\*;\\*(Pc\\*s\\*(Dq\\*p
 Set conformance level (DECSCL), VT220 and up.
 .iP
 The first parameter selects the conformance level.
 Valid values are:
-  \*(Ps = \*6\*1 \(-> level 1, e.g., VT100.
-  \*(Ps = \*6\*2 \(-> level 2, e.g., VT200.
-  \*(Ps = \*6\*3 \(-> level 3, e.g., VT300.
-  \*(Ps = \*6\*4 \(-> level 4, e.g., VT400.
-  \*(Ps = \*6\*5 \(-> level 5, e.g., VT500.
+  \*(Pl = \*6\*1 \(-> level 1, e.g., VT100.
+  \*(Pl = \*6\*2 \(-> level 2, e.g., VT200.
+  \*(Pl = \*6\*3 \(-> level 3, e.g., VT300.
+  \*(Pl = \*6\*4 \(-> level 4, e.g., VT400.
+  \*(Pl = \*6\*5 \(-> level 5, e.g., VT500.
 .iP
 The second parameter selects the C1 control transmission mode.
 This is an optional parameter, ignored in conformance level 1.
 Valid values are:
-  \*(Ps = \*0 \(-> 8-bit controls.
-  \*(Ps = \*1 \(-> 7-bit controls (DEC factory default).
-  \*(Ps = \*2 \(-> 8-bit controls.
+  \*(Pc = \*0 \(-> 8-bit controls.
+  \*(Pc = \*1 \(-> 7-bit controls (DEC factory default).
+  \*(Pc = \*2 \(-> 8-bit controls.
 .iP
 The 7-bit and 8-bit control modes can also be set by S7C1T and S8C1T,
 but DECSCL is preferred.
@@ -1781,7 +1833,7 @@ They correspond to the resources \fBcursorBlink\fP and \fBcursorBlinkXOR\fP.
 .
 .IP \\*(Cs\\*#\\*p
 .br
-.IP \\*(Cs\\*(Ps\\*s\\*;\\*(Ps\\*s\\*#\\*p
+.IP \\*(Cs\\*(Pm\\*s\\*#\\*p
 Push video attributes onto stack (XTPUSHSGR), \fI\*(xt\fP.
 This is an alias for \*(Cs\*#\*{,
 used to work around language limitations of C#.
@@ -1805,11 +1857,11 @@ Set cursor style (DECSCUSR), VT520.
   \*(Ps = \*2 \(-> steady block.
   \*(Ps = \*3 \(-> blinking underline.
   \*(Ps = \*4 \(-> steady underline.
-  \*(Ps = \*5 \(-> blinking bar (\fI\*(xt\fP).
-  \*(Ps = \*6 \(-> steady bar (\fI\*(xt\fP).
+  \*(Ps = \*5 \(-> blinking bar, \fI\*(xt\fP.
+  \*(Ps = \*6 \(-> steady bar, \fI\*(xt\fP.
 .
 .iP
-.IP \\*(Cs\\*(Ps\\*s\\*(c"\\*q
+.IP \\*(Cs\\*(Ps\\*s\\*(Dq\\*q
 Select character protection attribute (DECSCA).
 Valid values for the parameter:
   \*(Ps = \*0 \(-> DECSED and DECSEL can erase (default).
@@ -1856,7 +1908,7 @@ Save DEC Private Mode Values.
 .iP
 .IP \\*(Cs\\*(Ps\\*s\\*;\\*(Ps\\*s\\*;\\*(Ps\\*s\\*t
 Window manipulation (from \fIdtterm\fP, as well as extensions by \fI\*(xt\fP).
-These controls may be disabled using the \fIallowWindowOps\fP resource.
+These controls may be disabled using the \fBallowWindowOps\fP resource.
 .iP
 \fI\*(xt\fP uses \fIExtended Window Manager Hints\fP (EWMH) to maximize
 the window.
@@ -1942,7 +1994,6 @@ Result is
 .br
 Result is
 \*(Os\*s\*l\*s\fIlabel\fP\*s\*(ST
-.iP
   \*(Ps = \*2\*2\*;\*0 \(-> Save \fI\*(xt\fP icon and window title
 on stack.
   \*(Ps = \*2\*2\*;\*1 \(-> Save \fI\*(xt\fP icon title on stack.
@@ -1951,13 +2002,12 @@ on stack.
 from stack.
   \*(Ps = \*2\*3\*;\*1 \(-> Restore \fI\*(xt\fP icon title from stack.
   \*(Ps = \*2\*3\*;\*2 \(-> Restore \fI\*(xt\fP window title from stack.
-.iP
   \*(Ps >= \*2\*4 \(-> Resize to \*(Ps lines (DECSLPP), VT340 and VT420.
 .br
 \fI\*(xt\fP adapts this by resizing its window.
 .
 .iP
-.IP \\*(Cs\\*>\\*(Ps\\*s\\*;\\*(Ps\\*s\\*t
+.IP \\*(Cs\\*>\\*(Pm\\*s\\*t
 This \fI\*(xt\fP control
 sets one or more features of the title modes.
 Each parameter enables a single feature.
@@ -1987,9 +2037,9 @@ Restore cursor (SCORC, also ANSI.SYS).
 .iP
 .IP \\*(Cs\\*(Ps\\*s\\*(Sp\\*u
 Set margin-bell volume (DECSMBV), VT520.
+  \*(Ps = \*0, \*5, \*6, \*7, or \*8 \(-> high.
   \*(Ps = \*1 \(-> off.
   \*(Ps = \*2, \*3 or \*4 \(-> low.
-  \*(Ps = \*0, \*5, \*6, \*7, or \*8 \(-> high.
 .
 .iP
 .IP \\*(Cs\\*(Pt\\*s\\*;\\*(Pl\\*s\\*;\\*(Pb\\*s\\*;\\*(Pr\\*s\\*;\\*(Pp\\*s\\*;\\*(Pt\\*s\\*;\\*(Pl\\*s\\*;\\*(Pp\\*s\\*$\\*v
@@ -2097,7 +2147,7 @@ Valid values for the first parameter:
 The second parameter specifies the coordinate unit for locator reports.
 .br
 Valid values for the second parameter:
-  \*(Pu = \*0 \(<- or omitted \(-> default to character cells.
+  \*(Pu = \*0 or omitted \(-> default to character cells.
   \*(Pu = \*1 \(<- device physical pixels.
   \*(Pu = \*2 \(<- character cells.
 .
@@ -2122,7 +2172,7 @@ It also cancels any filter rectangle.
 .iP
 .IP \\*(Cs\\*#\\*{
 .br
-.IP \\*(Cs\\*(Ps\\*s\\*;\\*(Ps\\*s\\*#\\*{
+.IP \\*(Cs\\*(Pm\\*s\\*#\\*{
 Push video attributes onto stack (XTPUSHSGR), \fI\*(xt\fP.
 The optional parameters correspond to the SGR encoding for video attributes,
 except for colors (which do not have a unique SGR code):
@@ -2175,22 +2225,22 @@ up and down events if they have been enabled with a DECSLE, or when
 the locator is detected outside of a filter rectangle, if filter rectangles
 have been enabled with a DECEFR.
 .sP
-  \(-> \*(Cs\*(Pe\*s\*;\*(Pb\*s\*;\*(Pr\*s\*;\*(Pc\*s\*;\*(Pp\*s\*&\*s\*w
+  \(<- \*(Cs\*(Pe\*s\*;\*(Pb\*s\*;\*(Pr\*s\*;\*(Pc\*s\*;\*(Pp\*s\*&\*s\*w
 .sP
 Parameters are [\fIevent\fP;\fIbutton\fP;\fIrow\fP;\fIcolumn\fP;\fIpage\fP].
 .br
 Valid values for the event:
-  \*(Pe = \*0 \(-> locator unavailable - no other parameters sent.
-  \*(Pe = \*1 \(-> request - \fI\*(xt\fP received a DECRQLP.
-  \*(Pe = \*2 \(-> left button down.
-  \*(Pe = \*3 \(-> left button up.
-  \*(Pe = \*4 \(-> middle button down.
-  \*(Pe = \*5 \(-> middle button up.
-  \*(Pe = \*6 \(-> right button down.
-  \*(Pe = \*7 \(-> right button up.
-  \*(Pe = \*8 \(-> M4 button down.
-  \*(Pe = \*9 \(-> M4 button up.
-  \*(Pe = \*1\*0 \(-> locator outside filter rectangle.
+  \*(Pe = \*0 \(<- locator unavailable - no other parameters sent.
+  \*(Pe = \*1 \(<- request - \fI\*(xt\fP received a DECRQLP.
+  \*(Pe = \*2 \(<- left button down.
+  \*(Pe = \*3 \(<- left button up.
+  \*(Pe = \*4 \(<- middle button down.
+  \*(Pe = \*5 \(<- middle button up.
+  \*(Pe = \*6 \(<- right button down.
+  \*(Pe = \*7 \(<- right button up.
+  \*(Pe = \*8 \(<- M4 button down.
+  \*(Pe = \*9 \(<- M4 button up.
+  \*(Pe = \*1\*0 \(<- locator outside filter rectangle.
 .br
 The \*(``\fIbutton\fP\*('' parameter is a bitmask indicating
 which buttons are pressed:
@@ -2274,6 +2324,8 @@ to these codes in an \*(Os\*4 control:
 .in -2n
 .sP
   \*(Ps = \*6\*;\fIc\fP\*s\*;\fIf\fP \(-> Enable/disable Special Color Number \fIc\fP.
+The second parameter tells \fI\*(xt\fP to enable the corresponding color
+mode if nonzero, disable it if zero.
 \*(Os\*6 is the same as \*(Os\*1\*0\*6.
 .sP
 The 10 colors (below) which may be set or queried
@@ -2284,7 +2336,7 @@ i.e., after it was started.
 They are not the same as the ANSI colors
 (however, the dynamic text foreground and background colors
 are used when ANSI colors are reset using SGR \*3\*9 and \*4\*9, respectively).
-These controls may be disabled using the \fIallowColorOps\fP resource.
+These controls may be disabled using the \fBallowColorOps\fP resource.
 At least one parameter is expected for \*(Pt.
 Each successive parameter changes the next color in the list.
 The value of \*(Ps tells the starting point in the list.
@@ -2311,7 +2363,7 @@ be given in one control sequence, \fI\*(xt\fR can make more than one reply.
 This is normally disabled by a compile-time option.
 .sP
   \*(Ps = \*5\*0 \(-> Set Font to \*(Pt.
-These controls may be disabled using the \fIallowFontOps\fP resource.
+These controls may be disabled using the \fBallowFontOps\fP resource.
 If \*(Pt begins with a \*(``#\*('', index in the font menu, relative (if the
 next character is a plus or minus sign) or absolute.
 A number is
@@ -2331,7 +2383,7 @@ then this control sets/queries the \fBfaceName\fP resource.
   \*(Ps = \*5\*1 \(-> reserved for Emacs shell.
 .sP
   \*(Ps = \*5\*2 \(-> Manipulate Selection Data.
-These controls may be disabled using the \fIallowWindowOps\fP resource.
+These controls may be disabled using the \fBallowWindowOps\fP resource.
 The parameter \*(Pt is parsed as
 .br
 	\*(Pc\*s\*;\*(Pd
@@ -2454,6 +2506,42 @@ prefix a key with the \*(Es character.
 .bP
 shift the key from codes 0-127 to 128-255 by adding 128.
 .LP
+When \fBmodifyOtherKeys\fP is set,
+ordinary keys may be sent as escape sequences:
+.bP
+When \fBmodifyOtherKeys\fP is set to 1,
+only the alt- and meta-modifiers apply.
+For example, \fIalt-Tab\fP sends 
+\*(Cs\*2\*7\*;\*3\*;\*9\*~
+(the second parameter is \*(``3\*('' for \fIalt\fP,
+and the third parameter is the ASCII value of tab, \*(``9\*('').
+.bP
+When \fBmodifyOtherKeys\fP is set to 2,
+all of the modifiers apply.
+For example, \fIshift-Tab\fP sends 
+\*(Cs\*2\*7\*;\*2\*;\*9\*~
+rather than
+\*(Cs\*Z
+(the second parameter is \*(``2\*('' for \fIshift\fP).
+.LP
+The \fBformatOtherKeys\fP resource tells \fI\*n\fP to change the
+format of the escape sequences sent when \fBmodifyOtherKeys\fP applies.
+When \fBmodifyOtherKeys\fP is set to 1,
+for example \fIalt-Tab\fP sends 
+\*(Cs\*9\*;\*3\*u
+(changing the order of parameters).
+One drawback to this format is that applications may confuse it with
+\*(Cs\*u (restore-cursor).
+.LP
+The \fI\*(xt\fP FAQ section
+.br
+.ID 3
+.\" https://invisible-island.net/xterm/xterm.faq.html#xterm_modother
+\fIHow can my program distinguish control-I from tab?\fP
+.DE
+.br
+goes into greater detail on this topic.
+.LP
 The table shows the result for a given character \*(``x\*('' with modifiers
 according to the default translations with the resources set on or off.
 This assumes \fBaltIsNotMeta\fP is set:
@@ -2502,7 +2590,7 @@ by the \fBnumLock\fP resource,
 or by the \*(``DECSET \*1\*0\*3\*5\*('' control sequence.
 .LP
 The cursor keys transmit the following escape sequences depending on the
-mode specified via the \fBDECCKM\fP escape sequence.
+mode specified via the DECCKM escape sequence.
 .TS H
 center;
 lf3w(2c)	lf3w(2c)	lf3w(2c) .
@@ -2520,7 +2608,7 @@ _
 The home- and end-keys
 (unlike PageUp and other keys also on the 6-key editing keypad)
 are considered \*(``cursor keys\*('' by \fI\*(xt\fP.
-Their mode is also controlled by the \fBDECCKM\fP escape sequence:
+Their mode is also controlled by the DECCKM escape sequence:
 .TS H
 center;
 lf3w(2c)	lf3w(2c)	lf3w(2c) .
@@ -2535,7 +2623,7 @@ _
 .TE
 .LP
 The application keypad transmits the following escape sequences depending on the
-mode specified via the \fBDECKPNM\fP and \fBDECKPAM\fP escape sequences.
+mode specified via the DECKPNM and DECKPAM escape sequences.
 Use the NumLock key to override the application mode.
 .LP
 Not all keys are present on the Sun/PC keypad (e.g., PF1, Tab),
@@ -2607,7 +2695,7 @@ for F1 through F4, with a \*(Cs prefix.
 These can be activated by setting the \fBoldXtermFKeys\fP resource.
 However, since they do not correspond to any hardware terminal,
 they have been deprecated.
-(The DEC VT220 reserves F1 through F5 for local functions such as \fBSetup\fP).
+(The DEC VT220 reserves F1 through F5 for local functions such as \fISetup\fP).
 .TS H
 center;
 lf3w(2c)	lf3w(2c) .
@@ -2691,7 +2779,7 @@ the relationship between modifiers and the characters sent by function-keys
 is not readily apparent, and
 .bP
 the scheme is not extensible, i.e., it is an \fIad hoc\fP
-asssignment limited to two modifiers (\fIshift\fP and \fIcontrol\fP).
+assignment limited to two modifiers (\fIshift\fP and \fIcontrol\fP).
 .Sh "VT220-Style Function Keys"
 .LP
 However, \fI\*(xt\fP is most useful as a DEC VT102 or VT220 emulator.
@@ -2749,13 +2837,13 @@ Because that keyboard's keypad lacks the \*(``,\*('' (comma),
 it was not possible to use EDT's delete-character function with the keypad.
 \fI\*(XT\fP solves that problem for the VT220-keyboard configuration
 by mapping
-.sp
+.sP
   \fICtrl\fP \*+ to \*, and
   \fICtrl\fP \*- to \*-
 .LP
 The VT220 provides a 6-key editing keypad,
 which is analogous to that on the PC keyboard.
-It is not affected by \fBDECCKM\fP or \fBDECKPNM\fP/\fBDECKPAM\fP:
+It is not affected by DECCKM or DECKPNM/DECKPAM:
 .TS H
 center;
 lf3w(2c)	lf3w(2c)	lf3w(2c) .
@@ -2973,7 +3061,7 @@ or
 control sequence.
 .LP
 Manifest constants for the parameter values
-are defined in \fBxcharmouse.h\fP as follows:
+are defined in \fIxcharmouse.h\fP as follows:
 .
 .ID
 .ft CW
@@ -3068,7 +3156,7 @@ by adding 128 (for buttons 8 through 11).
 Past button 11, the encoding is ambiguous because the same code
 may correspond to different button/modifier combinations.
 It is not possible to use these buttons (6-11) in \fI\*(xt\fP's
-\fBtranslation\fP resource because their names are not in the X Toolkit's
+\fBtranslations\fP resource because their names are not in the X Toolkit's
 symbol table.
 .Ss Highlight tracking
 .LP
@@ -3080,16 +3168,18 @@ It is enabled by specifying parameter 1001 to DECSET.
 Highlighting is performed only for button 1, though other button events
 can be received.
 .sP
-\fBWarning:\fP use of this mode requires a cooperating program or it will
-hang \fI\*(xt.\fP
+\fBWarning\fP:
+this mode requires a cooperating program, else \fI\*(xt\fP will hang.
 .LP
 On button press, the same information as for normal tracking is
 generated; \fI\*(xt\fP then waits for the program to send mouse
 tracking information.
 \fIAll X events are ignored until the proper escape sequence is\fP
 \fIreceived from the pty:\fP
-\*(Cs\*(Ps\*s\*;\*(Ps\*s\*;\*(Ps\*s\*;\*(Ps\*s\*;\*(Ps\*s\*T.
-The parameters are \fIfunc, startx, starty, firstrow,\fP and \fIlastrow.\fP
+.br
+\*(Cs\*(Ps\*s\*;\*(Ps\*s\*;\*(Ps\*s\*;\*(Ps\*s\*;\*(Ps\*s\*T
+.LP
+The parameters are \fIfunc, startx, starty, firstrow,\fP and \fIlastrow\fP:
 .bP
 \fIfunc\fP is non-zero to initiate highlight tracking and zero to abort.
 .bP
@@ -3105,15 +3195,14 @@ When the button is released, \fI\*(xt\fP reports the ending position
 one of two ways:
 .bP
 if the start and end coordinates are the same locations:
-.br
-\*(Cs\*t\*(Cx\*(Cy.
+.sP
+\*(Cs\*t\*(Cx\*(Cy
 .bP
 otherwise:
-.br
-\*(Cs\*T\*(Cx\*(Cy\*(Cx\*(Cy\*(Cx\*(Cy.
-.br
-The parameters are \fIstartx, starty, endx, endy, mousex,\fP and \fImousey.\fP
-.RS
+.sP
+\*(Cs\*T\*(Cx\*(Cy\*(Cx\*(Cy\*(Cx\*(Cy
+.LP
+The parameters are \fIstartx, starty, endx, endy, mousex,\fP and \fImousey\fP:
 .bP
 \fIstartx, starty, endx, \fPand\fI endy\fP give the starting and
 ending character positions of the region.
@@ -3121,7 +3210,6 @@ ending character positions of the region.
 \fImousex\fP and \fImousey\fP
 give the location of the mouse at button up, which may not be over a
 character.
-.RE
 .Ss Button-event tracking
 .LP
 Button-event tracking is essentially the same as normal tracking, but
@@ -3139,10 +3227,16 @@ On button-motion events, \fI\*(xt\fP adds 32 to the event code
 The other bits of the event code specify
 button and modifier keys as in normal mode.
 For example, motion into cell x,y with button 1
-down is reported as \*(Cs\*M\*@\*(Cx\*(Cy.
+down is reported as
+.sP
+\*(Cs\*M\*@\*(Cx\*(Cy
+.sP
 (\ \*@ = 32 + 0 (button 1) + 32 (motion indicator)\ ).
 Similarly, motion with button 3
-down is reported as \*(Cs\*M\*(cB\*(Cx\*(Cy.
+down is reported as
+.sP
+\*(Cs\*M\*(cB\*(Cx\*(Cy
+.sP
 (\ \*(cB = 32 + 2 (button 3) + 32 (motion indicator)\ ).
 .Ss Any-event tracking
 .LP
@@ -3179,7 +3273,8 @@ which do treat their input as UTF-8 will almost certainly be confused
 unless extended mouse mode is active.
 .IP
 This scheme has the drawback that the encoded coordinates will not
-pass through \fIluit\fP unchanged, e.g., for locales using non-UTF-8 encoding.
+pass through \fBluit\fP(1) unchanged,
+e.g., for locales using non-UTF-8 encoding.
 .IP "SGR (1006)"
 The normal mouse response is altered to use
 .RS
@@ -3243,20 +3338,26 @@ it supports Sixel Graphics controls, a palleted bitmap graphics system
 using sets of six vertical pixels as the basic element.
 .St
 .IP \\*(Cs\\*(Ps\\*s\\*c
+Send Device Attributes (Primary DA), \fI\*(xt\fP.
 \fI\*(xt\fP responds to Send Device Attributes (Primary DA) with these
 additional codes:
   \*(Ps = \*4 \(-> Sixel graphics.
 .iP
 .IP \\*(Cs\\*?\\*(Pm\\*s\\*h
+Set Mode, \fI\*(xt\fP.
 \fI\*(xt\fP has these additional private Set Mode values:
   \*(Ps = \*8\*0 \(-> Sixel scrolling.
   \*(Ps = \*1\*0\*7\*0 \(-> use private color registers for each graphic.
   \*(Ps = \*8\*4\*5\*2 \(-> Sixel scrolling leaves cursor to right of graphic.
 .iP
 .IP \\*(Dc\\*(Pa\\*s\\*;\\*(Pb\\*s\\*;\\*(Ph\\*s\\*q\\*s\\*(Ps..\\*(Ps\fP\\*s\\*(ST
+Send SIXEL image, DEC graphics terminals, \fI\*(xt\fP.
 See:
-.ID
-http://vt100.net/docs/vt3xx-gp/chapter14.html
+.ID 3
+\fIVT330/VT340 Programmer Reference Manual Volume 2:\fP
+\fIGraphics Programming\fP
+.\" https://vt100.net/docs/vt3xx-gp/chapter14.html
+\fIChapter 14 Graphics Programming\fP
 .DE
 The sixel data device control string has three positional parameters,
 following the \*q with sixel data.
@@ -3278,18 +3379,24 @@ using the \fBdecTerminalID\fP resource,
 it supports Remote Graphic Instruction Set, a graphics description language.
 .St
 .IP \\*(Cs\\*(Ps\\*s\\*c
+Send Device Attributes (Primary DA), DEC graphics terminals, \fI\*(xt\fP.
 \fI\*(xt\fP responds to Send Device Attributes (Primary DA) with these
 additional codes:
   \*(Ps = \*3 \(-> ReGIS graphics.
 .iP
 .IP \\*(Cs\\*?\\*(Pm\\*s\\*h
+Set Mode, \fI\*(xt\fP.
 \fI\*(xt\fP has these additional private Set Mode values:
   \*(Ps = \*1\*0\*7\*0 \(-> use private color registers for each graphic.
 .iP
 .IP \\*(Dc\\*(Pm\\*s\\*p\\*(Pr..\\*(Pr\fP\\*s\\*(ST
+Enter or exit ReGIS, VT300, \fI\*(xt\fP.
 See:
-.ID
-http://vt100.net/docs/vt3xx-gp/chapter1.html
+.ID 3
+\fIVT330/VT340 Programmer Reference Manual Volume 2:\fP
+\fIGraphics Programming\fP
+.\" https://vt100.net/docs/vt3xx-gp/chapter1.html
+\fIChapter 1 Introduction to ReGIS\fP
 .DE
 The ReGIS data device control string has one positional parameter
 with four possible values:
@@ -3518,17 +3625,17 @@ in different model.
 Peter Sichel's \fIHost Interface Functions Checklist\fP
 spreadsheet is useful for noting
 which model introduced a given feature (although there are a few apparent
-errors such as the \fBDECRQSS\fP feature cited for VT320
+errors such as the DECRQSS feature cited for VT320
 whereas the technical manual omits it).
 .bP
 Sometimes the manuals disagree.
 For example, DEC's standard document (DEC STD 070) for terminals says
-that \fBDECSCL\fP performs a \fIsoft\fP reset (DECSTR),
+that DECSCL performs a \fIsoft\fP reset (DECSTR),
 while the VT420 manual says it does a \fIhard\fP reset (RIS).
 .bP
 Sometimes the manuals are simply incorrect.
 For example, testing a DEC VT420 in 1996 showed that the documented
-code for a valid or invalid response to \fBDECRQSS\fP was reversed.
+code for a valid or invalid response to DECRQSS was reversed.
 .IP
 The VT420 test results were incorporated into \fIvttest\fP program.
 At the time, DEC STD 070 was not available,
@@ -3563,41 +3670,49 @@ EK-VT100-TM-003, and
 EK-VT102-UG-003.
 The remaining documents were found on the bitsavers site.
 .bP
+.\" http://www.bitsavers.org/pdf/dec/terminal/vt52/EK-VT5X-OP-001_DECscope_Users_Manual_Mar77.pdf
 \fIDECscope User's Manual\fP.
 .br
 Digital Equipment Corporation
 (EK-VT5X-OP-001 1975).
 .bP
+.\" http://www.bitsavers.org/pdf/dec/terminal/vt100/EK-VT100-TM-003_VT100_Technical_Manual_Jul82.pdf
 \fIVT100 Series Video Terminal Technical Manual\fP.
 .br
 Digital Equipment Corporation
 (EK-VT100-TM-003, July 1982).
 .bP
+.\" https://vt100.net/docs/vt100-ug/
 \fIVT100 User Guide\fP.
 .br
 Digital Equipment Corporation
 (EK-VT100-UG-003, June 1981).
 .bP
+.\" https://vt100.net/docs/vt102-ug/
 \fIVT102 User Guide\fP.
 .br
 Digital Equipment Corporation
 (EK-VT102-UG-003, February 1982).
 .bP
+.\" http://manx-docs.org/details.php/1,2954
 \fIVT220 Programmer Pocket Guide\fP.
 .br
 Digital Equipment Corporation
 (EK-VT220-HR-002, July 1984).
 .bP
+.\" https://vt100.net/docs/vt220-rm/
 \fIVT220 Programmer Reference Manual\fP.
 .br
 Digital Equipment Corporation
 (EK-VT220-RM-002, August 1984).
 .bP
+.\" http://www.bitsavers.org/pdf/dec/terminal/vt240/EK-VT240-RM-002_VT240_Programmer_Reference_Manual_Oct84.pdf
 \fIVT240 Programmer Reference Manual\fP.
 .br
 Digital Equipment Corporation
 (EK-VT240-RM-002, October 1984).
 .bP
+.\" http://www.bitsavers.org/pdf/dec/terminal/vt340/EK-VT3XX-TP-001_VT330_VT340_Text_Programming_Mar87.pdf
 \fIVT330/VT340 Programmer Reference Manual\fP
 .br
 \fIVolume 1: Text Programming\fP.
@@ -3605,6 +3720,7 @@ Digital Equipment Corporation
 Digital Equipment Corporation
 (EK-VT3XX-TP-001, March 1987).
 .bP
+.\" https://vt100.net/docs/vt3xx-gp/
 \fIVT330/VT340 Programmer Reference Manual\fP
 .br
 \fIVolume 2: Graphics Programming\fP.
@@ -3612,6 +3728,7 @@ Digital Equipment Corporation
 Digital Equipment Corporation
 (EK-VT3XX-GP-001, March 1987).
 .bP
+.\" http://www.bitsavers.org/pdf/dec/terminal/vt420/EK-VT420-UG-001_Installing_and_Using_The_VT420_Video_Terminal_Nov89.pdf
 \fIInstalling and Using\fP
 .br
 \fIThe VT420 Video Terminal\fP
@@ -3621,11 +3738,13 @@ Digital Equipment Corporation
 Digital Equipment Corporation
 (EK-VT420-UG.002, February 1990).
 .bP
+.\" http://manx-docs.org/collections/mds-199909/cd3/term/vt420rm2.pdf
 \fIVT420 Programmer Reference Manual\fP.
 .br
 Digital Equipment Corporation
 (EK-VT420-RM-002, February 1992).
 .bP
+.\" https://vt100.net/docs/vt510-rm/
 \fIVT510 Video Terminal\fP
 .br
 \fIProgrammer Information\fP.
@@ -3633,6 +3752,7 @@ Digital Equipment Corporation
 Digital Equipment Corporation
 (EK-VT510-RM B01, November 1993).
 .bP
+.\" http://www.bitsavers.org/pdf/dec/terminal/vt5xx/EK-VT520-RM_VT520_VT525_Programmer_Information_Jul94.pdf
 \fIVT520/VT525 Video Terminal\fP
 .br
 \fIProgrammer Information\fP.
@@ -3640,6 +3760,7 @@ Digital Equipment Corporation
 Digital Equipment Corporation
 (EK-VT520-RM A01, July 1994).
 .bP
+.\" http://www.vaxhaven.com/images/f/f7/EK-PPLV2-PM-B01.pdf
 \fIDigital ANSI-Compliant Printing Protocol\fP
 .br
 \fILevel 2 Programming Reference Manual\fP
@@ -3647,6 +3768,7 @@ Digital Equipment Corporation
 Digital Equipment Corporation
 (EK-PPLV2-PM B01, August 1994).
 .bP
+.\" https://vt100.net/manx/details/5,5479
 \fI4014 and 4014-1 Computer Display Terminal\fP
 .br
 \fIUser's Manual\fP.
@@ -3664,7 +3786,7 @@ Again, it is possible to find discrepancies in the standards:
 .bP
 The printed ECMA-48 5th edition (1991)
 and the first PDF produced for that edition (April 1998)
-state that \fBSD\fP (scroll down) ends with 05/14, i.e., \*^,
+state that SD (scroll down) ends with 05/14, i.e., \*^,
 which disagrees with DEC's VT420 hardware implementation and
 DEC's manuals which use 05/04 \*T.
 (A few other terminals such as AT&T 5620 and IBM 5151 also used 05/04,
@@ -3673,22 +3795,31 @@ but the documentation and dates are lacking).
 ECMA created a new PDF in April 2003 which changed that detail to use \*T,
 and later in 2008 provided PDFs of the earlier editions which used \*T.
 .bP
-The VT320, VT420, VT520 manuals claim that \fBDECSCL\fP does a
-hard reset (\fBRIS\fP).
+The VT320, VT420, VT520 manuals claim that DECSCL does a
+hard reset (RIS).
 .IP
 Both the VT220 manual and DEC STD 070 (which documents
-levels 1-4 in detail) state that it is a soft reset, e.g., \fBDECSTR\fP.
+levels 1-4 in detail) state that it is a soft reset, e.g., DECSTR.
 .LP
 Here are the relevant standards:
 .bP
+.\" https://www.ecma-international.org/publications/standards/Ecma-035.htm
 \fIECMA-35: Character Code Structure and Extension Techniques\fP
 .br
 (6th Edition, December 1994).
 .bP
+.\" http://www.ecma-international.org/publications/files/ECMA-ST/Ecma-043.pdf
+\fIECMA-43: 8-bit Coded Character Set Structure and Rules\fP
+.br
+(3rd Edition, December 1991).
+.\" same as dpANS X3.134.1
+.bP
+.\" https://www.ecma-international.org/publications/standards/Ecma-048.htm
 \fIECMA-48: Control Functions for Coded Character Sets\fP
 .br
 (5th Edition, June 1991).
 .bP
+.\" http://www.bitsavers.org/pdf/dec/standards/EL-SM070-00_DEC_STD_070_Video_Systems_Reference_Manual_Dec91.pdf
 \fIDEC STD 070 Video Systems Reference Manual\fP.
 .br
 Digital Equipment Corporation
@@ -3709,7 +3840,7 @@ mention its use of these \*(``Sun tty emulation escape sequences\*(''
 for resizing the window.
 The X10.4 \fI\*(xt\fP program recognized these sequences for resizing
 the terminal, except for the iconfig/deiconfy pair.
-SunView also introduced the \fBSIGWINCH\fP signal,
+SunView also introduced the SIGWINCH signal,
 used by the X10.4 \fI\*(xt\fP and mentioned in its \fICHANGES\fP file:
 .iP
 .RS
@@ -3746,7 +3877,7 @@ and added a few new ones.
 l l l l l
 _ _ _ _ _
 l c c c l.
-\fBCode\fR	\fBSun\fR	\fBCDE\fR	\fI\*(xt\fP	\fIDescription\fP
+\fBCode\fR	\fBSun\fR	\fBCDE	\*(XT	Description\fP
 \*(Cs\*1\*t	yes	yes	yes	de-iconify
 \*(Cs\*2\*t	yes	yes	yes	iconify
 \*(Cs\*3\*t	yes	yes	yes	move window to pixel-position

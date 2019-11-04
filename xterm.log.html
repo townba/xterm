@@ -30,7 +30,7 @@
  * sale, use or other dealings in this Software without prior written        *
  * authorization.                                                            *
  *****************************************************************************
-  $XTermId: xterm.log.html,v 1.2105 2019/09/22 23:40:20 tom Exp $
+  $XTermId: xterm.log.html,v 1.2122 2019/11/02 15:08:35 tom Exp $
   -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 
@@ -73,6 +73,8 @@
   CHANGELOG</a>).</p>
 
   <ul>
+    <li><a href="#xterm_350">Patch #350 - 2019/11/02</a></li>
+
     <li><a href="#xterm_349">Patch #349 - 2019/09/22</a></li>
 
     <li><a href="#xterm_348">Patch #348 - 2019/07/22</a></li>
@@ -977,6 +979,65 @@
     <li><a href="#xterm_02">Patch #2 - 1996/1/7</a></li>
 
     <li><a href="#xterm_01">Patch #1 - 1996/1/6</a></li>
+  </ul>
+
+  <h1><a name="xterm_350" id="xterm_350">Patch #350 -
+  2019/11/02</a></h1>
+
+  <ul>
+    <li>modify html/svg dump to not ignore zero'd/blank cells.</li>
+
+    <li>align terminfo file with ncurses, e.g., add
+    <code>xterm+osc104</code> block.</li>
+
+    <li>improve discussion of <code>modifyOtherKeys</code> in
+    manual page and in <code>ctlseqs.ms</code>.</li>
+
+    <li>add <code>vttests/modify-keys.pl</code> script to
+    illustrate the <code>modifyOtherKeys</code> resource (prompted
+    by discussion with Bram Moolenaar).</li>
+
+    <li>various improvements to <code>ctlseqs.ms</code>, as part of
+    autogenerating links for the website.</li>
+
+    <li>update manual page default for <code>saveLines</code>
+    resource default value (Branden Robinson, Debian #913815).</li>
+
+    <li>add command-line option <code>-report-xres</code> to show
+    the values of the VT100 widget X resources when initialization
+    is complete.</li>
+
+    <li>add a control sequence which, like tcap-query, allows an
+    application to inspect most X resource settings of the VT100
+    widget.</li>
+
+    <li>adjust some optional features to enable them in the imake
+    configuration as they would be by default via the configure
+    script.</li>
+
+    <li>add null-pointer checks to improve error recovery when
+    bitmap fonts are missing or corrupt (report by Jonne
+    Ransijn).</li>
+
+    <li>correct the condition for deleting the EWMH window-title
+    property, i.e., if UTF-8 titles are disabled, rather than if an
+    update to the EWHM property found no change (report by Sven
+    Joachim).</li>
+
+    <li>build-fix for the case when configure
+    <code>--enable-trace</code> is used without
+    <code>--enable-warnings</code> (report by Sven Joachim).</li>
+
+    <li>fix a few minor bugs found with Coverity.</li>
+
+    <li>add a check in <code>property_to_string</code> to avoid
+    translating <code>UTF8_STRING</code> or
+    <code>COMPOUND_TEXT</code> into Latin-1 when UTF-8 encoding is
+    active, e.g., when pushing onto the title-stack while switching
+    to the alternate screen.</li>
+
+    <li>build-fix for the <code>--disable-doublechars</code>
+    configure option (report by Brian Lindholm).</li>
   </ul>
 
   <h1><a name="xterm_349" id="xterm_349">Patch #349 -
