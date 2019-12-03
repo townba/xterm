@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1720 2019/10/07 00:26:56 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1731 2019/11/17 22:38:26 tom Exp $ */
 
 /*
  * Copyright 1999-2018,2019 by Thomas E. Dickey
@@ -5811,42 +5811,35 @@ HandleStructNotify(Widget w GCC_UNUSED,
 		   Boolean *cont GCC_UNUSED)
 {
     XtermWidget xw = term;
+    TScreen *screen = TScreenOf(xw);
 
+    (void) screen;
+    TRACE_EVENT("HandleStructNotify", event, NULL, 0);
     switch (event->type) {
     case MapNotify:
-	TRACE(("HandleStructNotify(MapNotify) %#lx\n", event->xmap.window));
-	/* repairSizeHints(); */
 	resetZIconBeep(xw);
 	mapstate = !IsUnmapped;
 	break;
     case UnmapNotify:
-	TRACE(("HandleStructNotify(UnmapNotify) %#lx\n", event->xunmap.window));
 	mapstate = IsUnmapped;
 	break;
     case ConfigureNotify:
 	if (event->xconfigure.window == XtWindow(toplevel)) {
 #if !OPT_TOOLBAR
-	    int height, width;
-
-	    height = event->xconfigure.height;
-	    width = event->xconfigure.width;
+	    int height = event->xconfigure.height;
+	    int width = event->xconfigure.width;
 #endif
-	    TRACE(("HandleStructNotify(ConfigureNotify) %#lx %d,%d %dx%d\n",
-		   event->xconfigure.window,
-		   event->xconfigure.y, event->xconfigure.x,
-		   event->xconfigure.height, event->xconfigure.width));
 
 #if USE_DOUBLE_BUFFER
-	    discardRenderDraw(TScreenOf(xw));
+	    discardRenderDraw(screen);
 #endif /* USE_DOUBLE_BUFFER */
-
 #if OPT_TOOLBAR
 	    /*
 	     * The notification is for the top-level widget, but we care about
 	     * vt100 (ignore the tek4014 window).
 	     */
-	    if (TScreenOf(xw)->Vshow) {
-		VTwin *Vwin = WhichVWin(TScreenOf(xw));
+	    if (screen->Vshow) {
+		VTwin *Vwin = WhichVWin(screen);
 		TbInfo *info = &(Vwin->tb_info);
 		TbInfo save = *info;
 
@@ -5870,17 +5863,22 @@ HandleStructNotify(Widget w GCC_UNUSED,
 			 * Try to fool it.
 			 */
 			REQ_RESIZE((Widget) xw,
-				   TScreenOf(xw)->fullVwin.fullwidth,
+				   screen->fullVwin.fullwidth,
 				   (Dimension) (info->menu_height
 						- save.menu_height
-						+ TScreenOf(xw)->fullVwin.fullheight),
+						+ screen->fullVwin.fullheight),
 				   NULL, NULL);
 			repairSizeHints();
 		    }
 		}
 	    }
 #else
-	    if (height != xw->hints.height || width != xw->hints.width) {
+	    if (!xw->work.doing_resize
+#if OPT_RENDERFONT && USE_DOUBLE_BUFFER
+		&& !(resource.buffered && UsingRenderFont(xw))	/* buggyXft */
+#endif
+		&& (height != xw->hints.height
+		    || width != xw->hints.width)) {
 		/*
 		 * This is a special case: other calls to RequestResize that
 		 * could set the screensize arbitrarily are via escape
@@ -5896,14 +5894,6 @@ HandleStructNotify(Widget w GCC_UNUSED,
 	    }
 #endif /* OPT_TOOLBAR */
 	}
-	break;
-    case ReparentNotify:
-	TRACE(("HandleStructNotify(ReparentNotify) %#lx\n", event->xreparent.window));
-	break;
-    default:
-	TRACE(("HandleStructNotify(event %s) %#lx\n",
-	       visibleEventType(event->type),
-	       event->xany.window));
 	break;
     }
 }
@@ -7127,19 +7117,20 @@ property_to_string(XtermWidget xw, XTextProperty * text)
      * The xtermUtf8ToTextList() call is used to convert UTF-8 explicitly to
      * ISO-8859-1.
      */
+    rc = -1;
     if ((text->format != 8)
 	|| IsTitleMode(xw, tmGetUtf8)
 	|| (text->encoding == XA_UTF8_STRING(dpy) &&
 	    !(screen->wide_chars || screen->c1_printable) &&
 	    (rc = xtermUtf8ToTextList(xw, text, &list, &length)) < 0)
-	|| (rc = -1) > 0)
+	|| (rc < 0))
 #endif
 	if ((rc = XmbTextPropertyToTextList(dpy, text, &list, &length)) < 0)
 	    rc = XTextPropertyToStringList(text, &list, &length);
 
     if (rc >= 0) {
 	int n, c, pass;
-	size_t need = 0;
+	size_t need;
 
 	for (pass = 0; pass < 2; ++pass) {
 	    for (n = 0, need = 0; n < length; n++) {
@@ -8036,6 +8027,31 @@ RequestResize(XtermWidget xw, int rows, int cols, Bool text)
 	askedHeight = 0;
     }
 
+    xw->work.doing_resize = True;
+
+#if OPT_RENDERFONT && USE_DOUBLE_BUFFER
+    /*
+     * Work around a bug seen when vttest switches from 132 columns back to 80
+     * columns, while double-buffering is active.  If Xft is active during the
+     * resize, the screen will be blank thereafter.  This workaround causes
+     * some extra flickering, but that is preferable to a blank screen.
+     *
+     * Since the bitmap- and TrueType-fonts do not always have identical sizes,
+     * do this switching early, to use the updated font-sizes in the request
+     * for resizing the window.
+     */
+#define ToggleXft() HandleRenderFont((Widget)xw, (XEvent *)0, (String *)0, &ignore)
+    if (resource.buffered
+	&& UsingRenderFont(xw)) {
+	ToggleXft();
+	buggyXft = True;
+    }
+#endif
+
+    /*
+     * If the requested values will fit into a Dimension, and one or both are
+     * zero, get the current corresponding screen dimension to use as a limit.
+     */
     if (askedHeight == 0
 	|| askedWidth == 0
 	|| xw->misc.limit_resize > 0) {
@@ -8043,6 +8059,10 @@ RequestResize(XtermWidget xw, int rows, int cols, Bool text)
 			 RootWindowOfScreen(XtScreen(xw)), &attrs);
     }
 
+    /*
+     * Using the current font metrics, translate the requested character
+     * rows/columns into pixels.
+     */
     if (text) {
 	unsigned long value;
 
@@ -8052,7 +8072,7 @@ RequestResize(XtermWidget xw, int rows, int cols, Bool text)
 	    value *= (unsigned long) FontHeight(screen);
 	    value += (unsigned long) (2 * screen->border);
 	    if (!okDimension(value, askedHeight))
-		return;
+		goto give_up;
 	}
 
 	if ((value = (unsigned long) cols) != 0) {
@@ -8062,7 +8082,7 @@ RequestResize(XtermWidget xw, int rows, int cols, Bool text)
 	    value += (unsigned long) ((2 * screen->border)
 				      + ScrollbarWidth(screen));
 	    if (!okDimension(value, askedWidth))
-		return;
+		goto give_up;
 	}
 
     } else {
@@ -8095,21 +8115,6 @@ RequestResize(XtermWidget xw, int rows, int cols, Bool text)
     getXtermSizeHints(xw);
 #endif
 
-#if OPT_RENDERFONT && USE_DOUBLE_BUFFER
-    /*
-     * Work around a bug seen when vttest switches from 132 columns back to 80
-     * columns, while double-buffering is active.  If Xft is active during the
-     * resize, the screen will be blank thereafter.  This workaround causes
-     * some extra flickering, but that is preferable to a blank screen.
-     */
-#define ToggleXft() HandleRenderFont((Widget)xw, (XEvent *)0, (String *)0, &ignore)
-    if (resource.buffered
-	&& UsingRenderFont(xw)) {
-	ToggleXft();
-	buggyXft = True;
-    }
-#endif
-
     TRACE(("...requesting resize %dx%d\n", askedHeight, askedWidth));
     status = REQ_RESIZE((Widget) xw,
 			askedWidth, askedHeight,
@@ -8140,14 +8145,21 @@ RequestResize(XtermWidget xw, int rows, int cols, Bool text)
 #endif
 
     XSync(screen->display, False);	/* synchronize */
-    if (xtermAppPending())
+    if (xtermAppPending()) {
 	xevents(xw);
+    }
 
+  give_up:
 #if OPT_RENDERFONT && USE_DOUBLE_BUFFER
     if (buggyXft) {
 	ToggleXft();
+	if (xtermAppPending()) {
+	    xevents(xw);
+	}
     }
 #endif
+
+    xw->work.doing_resize = False;
 
     TRACE(("...RequestResize done\n"));
     return;
@@ -8495,7 +8507,6 @@ set_flags_from_list(char *target,
 		    const FlagList * list)
 {
     Cardinal n;
-    int value = -1;
 
     while (!IsEmpty(source)) {
 	char *next = ParseList(&source);
@@ -8505,8 +8516,7 @@ set_flags_from_list(char *target,
 	    break;
 	if (isdigit(CharOf(*next))) {
 	    char *temp;
-
-	    value = (int) strtol(next, &temp, 0);
+	    int value = (int) strtol(next, &temp, 0);
 	    if (!FullS2L(next, temp)) {
 		xtermWarning("Expected a number: %s\n", next);
 	    } else {
@@ -8522,7 +8532,7 @@ set_flags_from_list(char *target,
 	} else {
 	    for (n = 0; list[n].name != 0; ++n) {
 		if (!x_wildstrcmp(next, list[n].name)) {
-		    value = list[n].code;
+		    int value = list[n].code;
 		    target[value] = 1;
 		    found = True;
 		    TRACE(("...found %s (%d)\n", list[n].name, value));
@@ -8578,6 +8588,10 @@ reportResources(XtermWidget xw)
     String *list = TypeMallocN(String, XtNumber(xterm_resources));
     Cardinal n;
     int widest = 0;
+
+    if (list == NULL)
+	return;
+
     for (n = 0; n < XtNumber(xterm_resources); ++n) {
 	int width;
 	list[n] = (((int) xterm_resources[n].resource_offset < 0)
@@ -8592,6 +8606,7 @@ reportResources(XtermWidget xw)
     for (n = 0; n < XtNumber(xterm_resources); ++n) {
 	char *value = vt100ResourceToString(xw, list[n]);
 	printf("%-*s : %s\n", widest, list[n], value ? value : "(skip)");
+	free(value);
     }
     free(list);
 }
@@ -11578,10 +11593,8 @@ ShowCursor(void)
 			bg_pix = fg_pix;
 		    } else {
 			fg_pix = bg_pix;
+			bg_pix = selbg_pix;
 		    }
-		}
-		if (use_selbg) {
-		    bg_pix = selbg_pix;
 		}
 		if (use_selfg) {
 		    fg_pix = selfg_pix;
@@ -12566,7 +12579,7 @@ DoSetSelectedFont(Widget w,
 	int oldFont = TScreenOf(xw)->menu_font_number;
 	char *save = TScreenOf(xw)->SelectFontName();
 	char *val;
-	char *test = 0;
+	char *test;
 	unsigned len = (unsigned) *length;
 	unsigned tst;
 

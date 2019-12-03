@@ -1,4 +1,4 @@
-/* $XTermId: fontutils.c,v 1.656 2019/10/01 08:34:12 tom Exp $ */
+/* $XTermId: fontutils.c,v 1.659 2019/11/13 23:00:11 tom Exp $ */
 
 /*
  * Copyright 1998-2018,2019 by Thomas E. Dickey
@@ -135,6 +135,27 @@ static void fillInFaceSize(XtermWidget, int);
 
 #if OPT_SHIFT_FONTS
 static int lookupOneFontSize(XtermWidget, int);
+#endif
+
+#if OPT_TRACE
+static void
+set_font_height(TScreen *screen, VTwin *win, int height)
+{
+    SetFontHeight(screen, win, height);
+    TRACE(("SetFontHeight %d\n", win->f_height));
+#undef SetFontHeight
+#define SetFontHeight(screen, win, height) set_font_height(screen, win, height)
+}
+
+static void
+set_font_width(TScreen *screen, VTwin *win, int width)
+{
+    (void) screen;
+    SetFontWidth(screen, win, width);
+    TRACE(("SetFontWidth  %d\n", win->f_width));
+#undef  SetFontWidth
+#define SetFontWidth(screen, win, height) set_font_width(screen, win, height)
+}
 #endif
 
 #if OPT_REPORT_FONTS || OPT_WIDE_CHARS
@@ -1344,7 +1365,6 @@ loadWideFP(XtermWidget xw,
 	   int fontnum)
 {
     TScreen *screen = TScreenOf(xw);
-    FontNameProperties *fp;
     Bool status = True;
 
     TRACE(("loadWideFP (%s)\n", NonNull(*nameOutP)));
@@ -1352,7 +1372,8 @@ loadWideFP(XtermWidget xw,
     if (!check_fontname(*nameOutP)
 	&& (screen->utf8_fonts && !is_double_width_font(infoRef->fs))) {
 	char *normal = x_strdup(nameRef);
-	fp = get_font_name_props(screen->display, infoRef->fs, &normal);
+	FontNameProperties *fp = get_font_name_props(screen->display,
+						     infoRef->fs, &normal);
 	if (fp != 0) {
 	    *nameOutP = wide_font_name(fp);
 	    NoFontWarning(infoOut);
@@ -3362,7 +3383,7 @@ xtermComputeFontInfo(XtermWidget xw,
 }
 
 /* save this information as a side-effect for double-sized characters */
-void
+static void
 xtermSaveFontInfo(TScreen *screen, XFontStruct *font)
 {
     screen->fnt_wide = (Dimension) (font->max_bounds.width);
@@ -4914,7 +4935,11 @@ save2FontList(XtermWidget xw,
 	    }
 	}
 	if (success) {
+#if (MAX_XFT_FONTS == MAX_XLFD_FONTS)
+	    size_t limit = MAX_XFT_FONTS;
+#else
 	    size_t limit = use_ttf ? MAX_XFT_FONTS : MAX_XLFD_FONTS;
+#endif
 	    if (count > limit && *x_skip_blanks(value)) {
 		fprintf(stderr, "%s: too many fonts for %s, ignoring %s\n",
 			ProgramName,
