@@ -1,7 +1,7 @@
-/* $XTermId: fontutils.c,v 1.659 2019/11/13 23:00:11 tom Exp $ */
+/* $XTermId: fontutils.c,v 1.665 2020/01/16 00:20:50 tom Exp $ */
 
 /*
- * Copyright 1998-2018,2019 by Thomas E. Dickey
+ * Copyright 1998-2019,2020 by Thomas E. Dickey
  *
  *                         All Rights Reserved
  *
@@ -2422,9 +2422,15 @@ isBogusXft(XftFont *font)
 static int
 checkXft(XtermWidget xw, XTermXftFonts *target, XTermXftFonts *source)
 {
+    TScreen *screen = TScreenOf(xw);
     FcChar32 c;
+    FcChar32 last = xtermXftLastChar(source->font);
+    FcChar32 limit = 255;
     Dimension width = 0;
     int failed = 0;
+
+    (void) screen;
+    if_OPT_WIDE_CHARS(screen, limit = Min(last, 0x3000));
 
     target->font = source->font;
     target->pattern = source->pattern;
@@ -2432,13 +2438,12 @@ checkXft(XtermWidget xw, XTermXftFonts *target, XTermXftFonts *source)
     target->map.max_width = (Dimension) source->font->max_advance_width;
 
     /*
-     * For each ASCII or ISO-8859-1 printable code, ask what its width is.
-     * Given the maximum width for those, we have a reasonable estimate of
-     * the single-column width.
+     * For each printable code, ask what its width is.  Given the maximum width
+     * for those, we have a reasonable estimate of the single-column width.
      *
      * Ignore control characters - their extent information is misleading.
      */
-    for (c = 32; c < 255; ++c) {
+    for (c = 32; c < limit; ++c) {
 	if (c >= 127 && c <= 159)
 	    continue;
 	if (FcCharSetHasChar(source->font->charset, c)) {
@@ -2454,6 +2459,10 @@ checkXft(XtermWidget xw, XTermXftFonts *target, XTermXftFonts *source)
 	    if (extents.width > target->map.max_width)
 		continue;
 	    width = extents.width;
+	    if (width >= target->map.max_width) {
+		width = target->map.max_width;
+		break;
+	    }
 	}
     }
     /*
@@ -2462,7 +2471,7 @@ checkXft(XtermWidget xw, XTermXftFonts *target, XTermXftFonts *source)
      */
     if (width == 0) {
 	failed = 1;
-	if (xtermXftLastChar(source->font) >= 256) {
+	if (last >= 256) {
 	    width = target->map.max_width;
 	}
     }
@@ -2912,6 +2921,17 @@ setRenderFontsize(XtermWidget xw, VTwin *win, XftFont *font, const char *tag)
 	ascent = font->ascent;
 	descent = font->descent;
 	if (height < ascent + descent) {
+	    if ((ascent + descent) > (height + 1)) {
+		/* this happens less than 10% of the time */
+		--ascent;
+		--descent;
+	    } else if (ascent > descent) {
+		/* this is the usual case */
+		--ascent;
+	    } else {
+		/* this could happen, though rare... */
+		--descent;
+	    }
 	    TRACE(("...increase height from %d to %d\n", height, ascent + descent));
 	    height = ascent + descent;
 	}

@@ -1,7 +1,7 @@
-/* $XTermId: charproc.c,v 1.1731 2019/11/17 22:38:26 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1738 2020/01/11 00:28:15 tom Exp $ */
 
 /*
- * Copyright 1999-2018,2019 by Thomas E. Dickey
+ * Copyright 1999-2019,2020 by Thomas E. Dickey
  *
  *                         All Rights Reserved
  *
@@ -3393,7 +3393,6 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		case 47:
 		    if_OPT_ISO_COLORS(screen, {
 			xw->sgr_background = (op - 40);
-			xw->sgr_38_xcolors = False;
 			clrDirectBG(xw->flags);
 			setExtendedBG(xw);
 		    });
@@ -3404,7 +3403,6 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 			if (parse_extended_colors(xw, &value, &item,
 						  &extended)) {
 			    xw->sgr_background = value;
-			    xw->sgr_38_xcolors = True;
 			    setDirectBG(xw->flags, extended);
 			    setExtendedBG(xw);
 			}
@@ -7230,18 +7228,13 @@ window_ops(XtermWidget xw)
     switch (code) {
     case ewRestoreWin:		/* Restore (de-iconify) window */
 	if (AllowWindowOps(xw, ewRestoreWin)) {
-	    TRACE(("...de-iconify window\n"));
-	    XMapWindow(screen->display,
-		       VShellWindow(xw));
+	    xtermDeiconify(xw);
 	}
 	break;
 
     case ewMinimizeWin:	/* Minimize (iconify) window */
 	if (AllowWindowOps(xw, ewMinimizeWin)) {
-	    TRACE(("...iconify window\n"));
-	    XIconifyWindow(screen->display,
-			   VShellWindow(xw),
-			   DefaultScreen(screen->display));
+	    xtermIconify(xw);
 	}
 	break;
 
@@ -7320,15 +7313,10 @@ window_ops(XtermWidget xw)
     case ewGetWinState:	/* Report the window's state */
 	if (AllowWindowOps(xw, ewGetWinState)) {
 	    TRACE(("...get window attributes\n"));
-	    xtermGetWinAttrs(screen->display,
-			     VWindow(screen),
-			     &win_attrs);
 	    init_reply(ANSI_CSI);
 	    reply.a_pintro = 0;
 	    reply.a_nparam = 1;
-	    reply.a_param[0] = (ParmType) ((win_attrs.map_state == IsViewable)
-					   ? 1
-					   : 2);
+	    reply.a_param[0] = (ParmType) (xtermIsIconified(xw) ? 2 : 1);
 	    reply.a_inters = 0;
 	    reply.a_final = 't';
 	    unparseseq(xw, &reply);
@@ -7664,7 +7652,7 @@ unparseseq(XtermWidget xw, ANSI *ap)
 		unparseputc(xw, ap->a_param[i]);
 		break;
 	    default:
-		unparseputn(xw, (UParm) ap->a_param[i]);
+		unparseputn(xw, (unsigned) ap->a_param[i]);
 		break;
 	    }
 	}
@@ -7694,9 +7682,9 @@ unparseseq(XtermWidget xw, ANSI *ap)
 }
 
 void
-unparseputn(XtermWidget xw, UParm n)
+unparseputn(XtermWidget xw, unsigned n)
 {
-    UParm q;
+    unsigned q;
 
     q = n / 10;
     if (q != 0)
@@ -8602,7 +8590,7 @@ reportResources(XtermWidget xw)
 	if (widest < width)
 	    widest = width;
     }
-    qsort(list, XtNumber(xterm_resources), sizeof(String), cmp_resources);
+    qsort(list, (size_t) XtNumber(xterm_resources), sizeof(String), cmp_resources);
     for (n = 0; n < XtNumber(xterm_resources); ++n) {
 	char *value = vt100ResourceToString(xw, list[n]);
 	printf("%-*s : %s\n", widest, list[n], value ? value : "(skip)");
@@ -8644,13 +8632,13 @@ vt100ResourceToString(XtermWidget xw, const char *name)
 		    strcpy(result, value);
 	    }
 	} else if (!strcmp(res_type, XtRInt)) {
-	    if ((result = malloc(1 + (3 * data->resource_size))) != 0)
+	    if ((result = malloc(1 + (size_t) (3 * data->resource_size))) != 0)
 		sprintf(result, "%d", *(int *) res_addr);
 	} else if (!strcmp(res_type, XtRFloat)) {
-	    if ((result = malloc(1 + (3 * data->resource_size))) != 0)
+	    if ((result = malloc(1 + (size_t) (3 * data->resource_size))) != 0)
 		sprintf(result, "%f", *(float *) res_addr);
 	} else if (!strcmp(res_type, XtRBoolean)) {
-	    if ((result = malloc(6)) != 0)
+	    if ((result = malloc((size_t) 6)) != 0)
 		strcpy(result, *(Boolean *) res_addr ? "true" : "false");
 	}
     }
@@ -10465,26 +10453,6 @@ VTRealize(Widget w,
     int i;
 
     TRACE(("VTRealize {{\n"));
-
-#if OPT_TOOLBAR
-    /*
-     * Layout for the toolbar confuses the Shell widget.  Remind it that we
-     * would like to be iconified if the corresponding resource was set.
-     */
-    if (XtIsRealized(toplevel)) {
-	Boolean iconic = 0;
-
-	XtVaGetValues(toplevel,
-		      XtNiconic, &iconic,
-		      (XtPointer) 0);
-
-	if (iconic) {
-	    XIconifyWindow(XtDisplay(toplevel),
-			   XtWindow(toplevel),
-			   DefaultScreen(XtDisplay(toplevel)));
-	}
-    }
-#endif
 
     TabReset(xw->tabs);
 

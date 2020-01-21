@@ -1,7 +1,7 @@
-/* $XTermId: xterm.h,v 1.860 2019/10/06 20:02:14 tom Exp $ */
+/* $XTermId: xterm.h,v 1.863 2020/01/11 00:32:42 tom Exp $ */
 
 /*
- * Copyright 1999-2018,2019 by Thomas E. Dickey
+ * Copyright 1999-2019,2020 by Thomas E. Dickey
  *
  *                         All Rights Reserved
  *
@@ -991,7 +991,7 @@ extern void set_max_row(TScreen *  /* screen */, int  /* rows */);
 extern void unparse_end (XtermWidget /* xw */);
 extern void unparseputc (XtermWidget /* xw */, int  /* c */);
 extern void unparseputc1 (XtermWidget /* xw */, int  /* c */);
-extern void unparseputn (XtermWidget /* xw */, UParm /* n */);
+extern void unparseputn (XtermWidget /* xw */, unsigned /* n */);
 extern void unparseputs (XtermWidget /* xw */, const char * /* s */);
 extern void unparseseq (XtermWidget /* xw */, ANSI * /* ap */);
 extern void v_write (int  /* f */, const Char * /* d */, unsigned  /* len */);
@@ -1121,6 +1121,7 @@ extern Boolean allocateBestRGB(XtermWidget /* xw */, XColor * /* def */);
 extern Boolean validProgram(const char * /* pathname */);
 extern Boolean xtermGetWinAttrs(Display * /* dpy */, Window /* win */, XWindowAttributes * /* attrs */);
 extern Boolean xtermGetWinProp(Display * /* dpy */, Window /* win */, Atom /* property */, long /* long_offset */, long /* long_length */, Atom /* req_type */, Atom * /* actual_type_return */, int * /* actual_format_return */, unsigned long * /* nitems_return */, unsigned long * /* bytes_after_return */, unsigned char ** /* prop_return */);
+extern Boolean xtermIsIconified (XtermWidget /* xw */);
 extern Cursor make_colored_cursor (unsigned /* cursorindex */, unsigned long /* fg */, unsigned long /* bg */);
 extern FILE * create_printfile(XtermWidget /* xw */, const char * /* suffix */);
 extern OptionHelp * sortedOpts(OptionHelp *, XrmOptionDescRec *, Cardinal);
@@ -1191,7 +1192,9 @@ extern void xt_error (String /* message */) GCC_NORETURN;
 extern void xtermBell(XtermWidget /* xw */, int /* which */, int /* percent */);
 extern void xtermCopyEnv (char ** /* oldenv */);
 extern void xtermDisplayCursor (XtermWidget /* xw */);
+extern void xtermDeiconify (XtermWidget /* xw */);
 extern void xtermEmbedWindow (Window /* winToEmbedInfo */);
+extern void xtermIconify (XtermWidget /* xw */);
 extern void xtermLoadIcon (XtermWidget /* xw */, const char * /* icon_hint */);
 extern void xtermPerror (const char * /*fmt*/,...) GCC_PRINTFLIKE(1,2);
 extern void xtermSetenv (const char * /* var */, const char * /* value */);
