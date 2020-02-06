@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.923 2020/01/11 01:47:52 tom Exp $ */
+/* $XTermId: misc.c,v 1.926 2020/02/01 13:19:03 Jimmy.Aguilar.Mena Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -586,7 +586,6 @@ xevents(XtermWidget xw)
 	} else if (event.xany.type == MotionNotify
 		   && event.xcrossing.window == XtWindow(xw)) {
 	    switch (screen->send_mouse_pos) {
-	    case BTN_EVENT_MOUSE:
 	    case ANY_EVENT_MOUSE:
 #if OPT_DEC_LOCATOR
 	    case DEC_LOCATOR:
@@ -594,6 +593,9 @@ xevents(XtermWidget xw)
 		SendMousePosition(xw, &event);
 		xtermShowPointer(xw, True);
 		continue;
+	    case BTN_EVENT_MOUSE:
+		SendMousePosition(xw, &event);
+		xtermShowPointer(xw, True);
 	    }
 	}
 
@@ -635,6 +637,10 @@ xevents(XtermWidget xw)
 	     (event.xany.type != ButtonPress) &&
 	     (event.xany.type != ButtonRelease))) {
 
+	    if (event.xany.type == MappingNotify) {
+		XRefreshKeyboardMapping(&(event.xmapping));
+		VTInitModifiers(xw);
+	    }
 	    XtDispatchEvent(&event);
 	}
     } while (xtermAppPending() & XtIMXEvent);
@@ -5779,7 +5785,7 @@ ReverseOldColors(XtermWidget xw)
     char *tmpName;
 
     if (pOld) {
-	/* change text cursor, if necesary */
+	/* change text cursor, if necessary */
 	if (pOld->colors[TEXT_CURSOR] == pOld->colors[TEXT_FG]) {
 	    pOld->colors[TEXT_CURSOR] = pOld->colors[TEXT_BG];
 	    if (pOld->names[TEXT_CURSOR]) {
