@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1740 2020/01/29 19:19:42 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1746 2020/04/23 19:26:37 Nicholas.Marriott Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -117,10 +117,6 @@
 #include <X11/extensions/Xdbe.h>
 #endif
 
-#if OPT_INPUT_METHOD
-#include <X11/Xlocale.h>
-#endif
-
 #include <stdio.h>
 #include <ctype.h>
 #include <assert.h>
@@ -205,11 +201,10 @@ static PARAMS parms;
 
 #define nparam parms.count
 
-#define InitParams()  parms.count = parms.is_sub[0] = parms.has_subparams = 0
+#define InitParams()  init_params()
 #define GetParam(n)   parms.params[(n)]
 #define SetParam(n,v) parms.params[(n)] = v
 #define ParamPair(n)  nparam - (n), parms.params + (n)
-#define ParamsDone()  InitParams()
 
 static jmp_buf vtjmpbuf;
 
@@ -811,6 +806,7 @@ static XtResource xterm_resources[] =
 #endif
 
 #if OPT_RENDERFONT
+    Bres(XtNforceXftHeight, XtCForceXftHeight, screen.force_xft_height, False),
 #define RES_FACESIZE(n) Dres(XtNfaceSize #n, XtCFaceSize #n, misc.face_size[n], "0.0")
     RES_FACESIZE(1),
     RES_FACESIZE(2),
@@ -1615,6 +1611,18 @@ check_bitmasks(void)
 }
 #endif
 
+static int
+init_params(void)
+{
+    while (parms.count-- > 0) {
+	parms.is_sub[parms.count] = 0;
+	parms.params[parms.count] = 0;
+    }
+    parms.count = 0;
+    parms.has_subparams = 0;
+    return 0;
+}
+
 #if OPT_TRACE > 0
 static void
 dump_params(void)
@@ -2172,7 +2180,7 @@ repaintWhenPaletteChanged(XtermWidget xw, struct ParseState *sp)
 #define ParseSOS(screen) 0
 #endif
 
-#define ResetState(sp) ParamsDone(), (sp)->parsestate = (sp)->groundtable
+#define ResetState(sp) InitParams(), (sp)->parsestate = (sp)->groundtable
 
 static void
 illegal_parse(XtermWidget xw, unsigned c, struct ParseState *sp)
@@ -2586,7 +2594,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	    case CASE_DEC_STATE:
 		/* use this branch when we do not yet have the final character */
 		TRACE(("...unexpected subparam usage\n"));
-		ParamsDone();
+		InitParams();
 		sp->nextstate = CASE_CSI_IGNORE;
 		break;
 
@@ -2660,7 +2668,6 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	case CASE_VT52_CUP:
 	    TRACE(("CASE_VT52_CUP - VT52 cursor addressing\n"));
 	    sp->vt52_cup = True;
-	    InitParams();
 	    ResetState(sp);
 	    break;
 
@@ -3053,19 +3060,12 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		    reply.a_param[count++] = 1;		/* 132-columns */
 		    reply.a_param[count++] = 2;		/* printer */
 #if OPT_REGIS_GRAPHICS
-		    if (screen->terminal_id == 240 ||
-			screen->terminal_id == 241 ||
-			screen->terminal_id == 330 ||
-			screen->terminal_id == 340) {
+		    if (optRegisGraphics(screen)) {
 			reply.a_param[count++] = 3;	/* ReGIS graphics */
 		    }
 #endif
 #if OPT_SIXEL_GRAPHICS
-		    if (screen->terminal_id == 240 ||
-			screen->terminal_id == 241 ||
-			screen->terminal_id == 330 ||
-			screen->terminal_id == 340 ||
-			screen->terminal_id == 382) {
+		    if (optSixelGraphics(screen)) {
 			reply.a_param[count++] = 4;	/* sixel graphics */
 		    }
 #endif
@@ -3112,6 +3112,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 			reply.a_param[count++] = 1;	/* VT220 */
 			break;
 		    case 240:
+		    case 241:
 			/* http://www.decuslib.com/DECUS/vax87a/gendyn/vt200_kind.lis */
 			reply.a_param[count++] = 2;	/* VT240 */
 			break;
@@ -3124,6 +3125,9 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 			break;
 		    case 340:
 			reply.a_param[count++] = 19;	/* VT340 */
+			break;
+		    case 382:
+			reply.a_param[count++] = 32;	/* VT382 */
 			break;
 		    case 420:
 			reply.a_param[count++] = 41;	/* VT420 */
@@ -4283,6 +4287,19 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	case CASE_HTS:
 	    TRACE(("CASE_HTS - horizontal tab set\n"));
 	    TabSet(xw->tabs, screen->cur_col);
+	    ResetState(sp);
+	    break;
+
+	case CASE_REPORT_VERSION:
+	    TRACE(("CASE_REPORT_VERSION - report terminal version\n"));
+	    if (GetParam(0) <= 0) {
+		unparseputc1(xw, ANSI_DCS);
+		unparseputc(xw, '>');
+		unparseputc(xw, '|');
+		unparseputs(xw, xtermVersion());
+		unparseputc1(xw, ANSI_ST);
+		unparse_end(xw);
+	    }
 	    ResetState(sp);
 	    break;
 
@@ -6262,11 +6279,7 @@ dpmodes(XtermWidget xw, BitFunc func)
 	    break;
 #if OPT_SIXEL_GRAPHICS
 	case srm_DECSDM:	/* sixel scrolling */
-	    if (screen->terminal_id == 240 ||	/* FIXME: VT24x did not scroll sixel graphics */
-		screen->terminal_id == 241 ||
-		screen->terminal_id == 330 ||
-		screen->terminal_id == 340 ||
-		screen->terminal_id == 382) {
+	    if (optSixelGraphics(screen)) {	/* FIXME: VT24x did not scroll sixel graphics */
 		(*func) (&xw->keyboard.flags, MODE_DECSDM);
 		TRACE(("DECSET/DECRST DECSDM %s (resource default is %d)\n",
 		       BtoS(xw->keyboard.flags & MODE_DECSDM),
@@ -6455,11 +6468,7 @@ dpmodes(XtermWidget xw, BitFunc func)
 #endif
 #if OPT_SIXEL_GRAPHICS
 	case srm_SIXEL_SCROLLS_RIGHT:	/* sixel scrolling moves cursor to right */
-	    if (screen->terminal_id == 240 ||	/* FIXME: VT24x did not scroll sixel graphics */
-		screen->terminal_id == 241 ||
-		screen->terminal_id == 330 ||
-		screen->terminal_id == 340 ||
-		screen->terminal_id == 382) {
+	    if (optSixelGraphics(screen)) {	/* FIXME: VT24x did not scroll sixel graphics */
 		set_bool_mode(screen->sixel_scrolls_right);
 		TRACE(("DECSET/DECRST SIXEL_SCROLLS_RIGHT to %s (resource default is %s)\n",
 		       BtoS(screen->sixel_scrolls_right),
@@ -8837,6 +8846,7 @@ VTInitialize(Widget wrequest,
     };
 #endif /* OPT_COLOR_RES2 */
     TScreen *screen = TScreenOf(wnew);
+    char *saveLocale = xtermSetLocale(LC_NUMERIC, "C");
 
 #if OPT_TRACE
     check_bitmasks();
@@ -9001,11 +9011,37 @@ VTInitialize(Widget wrequest,
 	if (!isalpha(CharOf(*s)))
 	    break;
     }
-    screen->terminal_id = atoi(s);
-    if (screen->terminal_id < MIN_DECID)
-	screen->terminal_id = MIN_DECID;
-    if (screen->terminal_id > MAX_DECID)
-	screen->terminal_id = MAX_DECID;
+    switch (screen->terminal_id = atoi(s)) {
+    case 52:
+    case 101:
+    case 102:
+    case 220:
+    case 320:
+    case 420:
+    case 510:
+    case 520:
+    case 525:
+#if OPT_GRAPHICS
+    case 125:
+	break;
+#endif
+    default:
+#if OPT_REGIS_GRAPHICS
+	if (optRegisGraphics(screen))
+	    break;
+#endif
+#if OPT_SIXEL_GRAPHICS
+	if (optSixelGraphics(screen))
+	    break;
+#endif
+	if (screen->terminal_id < MIN_DECID)
+	    screen->terminal_id = MIN_DECID;
+	else if (screen->terminal_id > MAX_DECID)
+	    screen->terminal_id = MAX_DECID;
+	else
+	    screen->terminal_id = atoi(DFT_DECID);
+	break;
+    }
     TRACE(("term_id '%s' -> terminal_id %d\n",
 	   screen->term_id,
 	   screen->terminal_id));
@@ -9224,6 +9260,7 @@ VTInitialize(Widget wrequest,
      * that should override the "font" resource.
      */
 #if OPT_RENDERFONT
+    init_Bres(screen.force_xft_height);
     for (i = 0; i <= fontMenu_lastBuiltin; ++i) {
 	init_Dres2(misc.face_size, i);
     }
@@ -9665,9 +9702,7 @@ VTInitialize(Widget wrequest,
 	    native_h = 460;
 	    break;
 	case 240:
-	    native_w = 800;
-	    native_h = 460;
-	    break;
+	    /* FALLTHRU */
 	case 241:
 	    native_w = 800;
 	    native_h = 460;
@@ -9891,6 +9926,7 @@ VTInitialize(Widget wrequest,
     if (resource.reportXRes)
 	reportResources(wnew);
 #endif
+    xtermResetLocale(LC_NUMERIC, saveLocale);
     return;
 }
 

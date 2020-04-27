@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.926 2020/02/01 13:19:03 Jimmy.Aguilar.Mena Exp $ */
+/* $XTermId: misc.c,v 1.929 2020/04/19 16:41:30 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -68,7 +68,6 @@
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
 #include <X11/cursorfont.h>
-#include <X11/Xlocale.h>
 
 #include <X11/Xmu/Error.h>
 #include <X11/Xmu/SysUtil.h>
@@ -486,6 +485,41 @@ mergeConfigureEvents(XEvent *target)
 }
 
 /*
+ * Work around a bug in the X mouse code, which delivers duplicate events.
+ */
+static XtInputMask
+mergeButtonEvents(XEvent *target)
+{
+    XEvent next_event;
+    XButtonEvent *p;
+
+    XtAppNextEvent(app_con, target);
+    p = (XButtonEvent *) target;
+
+    if (XtAppPending(app_con)
+	&& XtAppPeekEvent(app_con, &next_event)
+	&& !memcmp(target, &next_event, sizeof(XButtonEvent))) {
+	Boolean merge_this = False;
+	XButtonEvent *q = (XButtonEvent *) (&next_event);
+
+	XtAppNextEvent(app_con, &next_event);
+	TRACE_EVENT("pending", &next_event, (String *) 0, 0);
+
+	if (p->window == q->window) {
+	    TRACE(("pending ButtonEvent...merged\n"));
+	    merge_this = True;
+	}
+	if (!merge_this) {
+	    TRACE(("pending ButtonEvent...skipped\n"));
+	    XtDispatchEvent(target);
+	}
+	*target = next_event;
+    }
+    XtDispatchEvent(target);
+    return XtAppPending(app_con);
+}
+
+/*
  * Filter redundant Expose- and ConfigureNotify-events.  This is limited to
  * adjacent events because there could be other event-loop processing.  Absent
  * that limitation, it might be possible to scan ahead to find when the screen
@@ -508,6 +542,9 @@ xtermAppPending(void)
 	    result = mergeExposeEvents(&this_event);
 	} else if (this_event.type == ConfigureNotify) {
 	    result = mergeConfigureEvents(&this_event);
+	} else if (this_event.type == ButtonPress ||
+		   this_event.type == ButtonRelease) {
+	    result = mergeButtonEvents(&this_event);
 	} else {
 	    break;
 	}
@@ -4804,10 +4841,7 @@ do_dcs(XtermWidget xw, Char *dcsbuf, size_t dcslen)
 	    case 'p':
 #if OPT_REGIS_GRAPHICS
 		if (screen->terminal_id == 125 ||
-		    screen->terminal_id == 240 ||
-		    screen->terminal_id == 241 ||
-		    screen->terminal_id == 330 ||
-		    screen->terminal_id == 340) {
+		    optRegisGraphics(screen)) {
 		    parse_regis(xw, &params, cp);
 		}
 #else
@@ -4817,11 +4851,7 @@ do_dcs(XtermWidget xw, Char *dcsbuf, size_t dcslen)
 	    case 'q':
 #if OPT_SIXEL_GRAPHICS
 		if (screen->terminal_id == 125 ||
-		    screen->terminal_id == 240 ||
-		    screen->terminal_id == 241 ||
-		    screen->terminal_id == 330 ||
-		    screen->terminal_id == 340 ||
-		    screen->terminal_id == 382) {
+		    optSixelGraphics(screen)) {
 		    (void) parse_sixel(xw, &params, cp);
 		}
 #else
