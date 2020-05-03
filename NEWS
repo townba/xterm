@@ -1,14 +1,8 @@
 The NEWS file was generated from xterm.log.html, which serves as the changelog
 for xterm.
 --------------------------------------------------------------------------------
-                            Patch #355 - 2020/05/01
+                            Patch #356 - 2020/05/02
 
      * revise  fix  for  Debian #954730, which interfered with wheel mouse
-       events (report by Henri Menke).
-     * fix  typos  in  documentation  (reports  by  Stephen  Hurd,  Stefan
-       Assmann).
-     * add mapping for decTerminalID for “100” overlooked in patch #354.
-     * update tables in wcwidth.c based on Unicode 13.0.0
-     * build-fix for “make check” when building out-of-tree (report by
-       Sven Joachim).
+       events (report by Gabriele Balducci).
 
