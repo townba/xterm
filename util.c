@@ -1,4 +1,4 @@
-/* $XTermId: util.c,v 1.850 2020/04/25 11:13:31 tom Exp $ */
+/* $XTermId: util.c,v 1.853 2020/06/23 22:44:28 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -1015,7 +1015,7 @@ showZIconBeep(XtermWidget xw, char *name)
 
     if (resource.zIconBeep && TScreenOf(xw)->zIconBeep_flagged) {
 	char *format = resource.zIconFormat;
-	char *newname = TextAlloc(strlen(name) + strlen(format) + 1);
+	char *newname = malloc(strlen(name) + strlen(format) + 2);
 	if (!newname) {
 	    xtermWarning("malloc failed in showZIconBeep\n");
 	} else {
@@ -1053,7 +1053,7 @@ resetZIconBeep(XtermWidget xw)
 	char *icon_name = getIconName();
 	screen->zIconBeep_flagged = False;
 	if (icon_name != NULL) {
-	    char *buf = TextAlloc(strlen(icon_name));
+	    char *buf = malloc(strlen(icon_name) + 1);
 	    if (buf == NULL) {
 		screen->zIconBeep_flagged = True;
 	    } else {
@@ -1890,6 +1890,21 @@ ClearScreen(XtermWidget xw)
  * ignore the protected flags.
  */
 void
+do_erase_char(XtermWidget xw, int param, int mode)
+{
+    TScreen *screen = TScreenOf(xw);
+    int saved_mode = screen->protected_mode;
+
+    if (saved_mode == DEC_PROTECT
+	&& saved_mode != mode) {
+	screen->protected_mode = OFF_PROTECT;
+    }
+
+    ClearRight(xw, param);
+    screen->protected_mode = saved_mode;
+}
+
+void
 do_erase_line(XtermWidget xw, int param, int mode)
 {
     TScreen *screen = TScreenOf(xw);
@@ -2262,7 +2277,7 @@ HandleExposure(XtermWidget xw, XEvent *event)
 }
 
 static void
-set_background(XtermWidget xw, int color GCC_UNUSED)
+set_background(XtermWidget xw, int color)
 {
     TScreen *screen = TScreenOf(xw);
     Pixel c = getXtermBG(xw, xw->flags, color);
@@ -3023,7 +3038,7 @@ getNormXftFont(XTermDraw * params,
  */
 static int
 xtermXftDrawString(XTermDraw * params,
-		   unsigned attr_flags GCC_UNUSED,
+		   unsigned attr_flags,
 		   XftColor *color,
 		   XftFont *font,
 		   int x,
@@ -3035,6 +3050,7 @@ xtermXftDrawString(XTermDraw * params,
     TScreen *screen = TScreenOf(params->xw);
     int ncells = 0;
 
+    (void) attr_flags;
     if (len != 0) {
 #if OPT_RENDERWIDE
 	XftCharSpec *sbuf;
@@ -3450,7 +3466,7 @@ drawClippedXftString(XTermDraw * params,
 #endif
 	if (screen->use_clipping || halfHigh) {
 	    XRectangle clip;
-	    double adds = (screen->scale_height - 1.0) * fontHigh;
+	    double adds = ((double) screen->scale_height - 1.0) * fontHigh;
 	    int height = dimRound(adds + fontHigh);
 	    int descnt = dimRound(adds / 2.0) + FontDescent(screen);
 	    int clip_x = (x);
@@ -4238,7 +4254,7 @@ drawXtermText(XTermDraw * params,
 	   DrawFlags(),
 	   recur.this_chrset, len,
 	   visibleIChars(text, len)));
-    if (screen->scale_height != 1.0) {
+    if (screen->scale_height != (float) 1.0) {
 	xtermFillCells(&recur, gc, x, y, (Cardinal) len);
     }
     y += FontAscent(screen);

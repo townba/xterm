@@ -30,7 +30,7 @@
  * sale, use or other dealings in this Software without prior written        *
  * authorization.                                                            *
  *****************************************************************************
-  $XTermId: xterm.log.html,v 1.2187 2020/05/03 00:10:44 tom Exp $
+  $XTermId: xterm.log.html,v 1.2211 2020/07/05 21:19:05 tom Exp $
   -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 
@@ -73,6 +73,8 @@
   CHANGELOG</a>).</p>
 
   <ul>
+    <li><a href="#xterm_357">Patch #357 - 2020/07/05</a></li>
+
     <li><a href="#xterm_356">Patch #356 - 2020/05/02</a></li>
 
     <li><a href="#xterm_355">Patch #355 - 2020/05/01</a></li>
@@ -993,6 +995,87 @@
     <li><a href="#xterm_01">Patch #1 - 1996/1/6</a></li>
   </ul>
 
+  <h1><a name="xterm_357" id="xterm_357">Patch #357 -
+  2020/07/05</a></h1>
+
+  <ul>
+    <li>several minor optimizations for the ReGIS and SIXEL
+    features, improving performance by 10%.</li>
+
+    <li>add resource <code>decGraphicsID</code> to allow displaying
+    graphics when the emulation level would ordinarily disallow
+    this (prompted by discussion with Thomas Wolff).</li>
+
+    <li>add control sequences for fast switching of color palettes:
+    <code>XTPUSHCOLORS</code>, <code>XTPOPCOLORS</code>,
+    <code>XTREPORTCOLORS</code></li>
+
+    <li>amend change for soft-hyphen from <a href=
+    "#xterm_328">patch #328</a> to avoid stripping
+    replacement-characters which would be shown with malformed or
+    overlong UTF-8 input.</li>
+
+    <li>corrected an error-handling case in
+    <code>decodeUtf8</code>, matching a similar fix in <a href=
+    "#xterm_268">patch #268</a> (report/patch by Dan Gohman).</li>
+
+    <li>add a test-driver for <code>ptydata.c</code></li>
+
+    <li>minor cleanup of macros (adapted from patch by Walter
+    Harms).</li>
+
+    <li>fix some errata in <code>ctlseqs.ms</code> (report by
+    Thomas Wolff).</li>
+
+    <li>allow immediate repaint-on-palette-changed if
+    double-buffering is enabled.</li>
+
+    <li>deprecate codes 10/11 in sgr push controls, changing those
+    to 30/31, to avoid confusion with sgr 10-19.</li>
+
+    <li>modify <code>SGR</code> parameter handling to stop if an
+    unrecognized parameter is encountered, to guard against
+    malformed or nonstandard sequences (report by Bram
+    Moolenaar).</li>
+
+    <li>modify <code>DECERA</code> color for consistency with other
+    erasures/clearing (report by Thomas Wolff).</li>
+
+    <li><code>ECH</code> should not be masked by
+    <code>DECSCA</code> (report by Thomas Wolff).</li>
+
+    <li>extend <code>DECFRA</code> and <code>REP</code> to accept
+    any &ldquo;graphic&rdquo; character rather than just Latin1,
+    etc. (report by Thomas Wolff).</li>
+
+    <li>add <code>-C</code> option to 256colors2.pl and
+    88colors2.pl, to demonstrate mixed semicolon/colon separators
+    which are implied by ECMA-48.</li>
+
+    <li>update sample terminfo to reflect the documentation
+    improvements.</li>
+
+    <li>update description of 88/256/direct color in
+    <code>ctlseqs.ms</code> to point out that using semicolons is a
+    deprecated legacy feature, and standard terminal applications
+    should use colons (prompted by discussion with Bram
+    Moolenaar).</li>
+
+    <li>modify configure-check for <code>tgetent</code> to
+    conditionally include <code>termcap.h</code>, enabling
+    configuration using <code>clang</code>'s pedantic-errors option
+    (report by Dennis Clarke). See <a href=
+    "https://invisible-island.net/ncurses/man/curs_termcap.3x.html#h3-Other-Compatibility">
+    <em>Other Compatibility</em></a> in ncurses'
+    <em>curs_termcap(3X)</em>.</li>
+
+    <li>remove some unnecessary pointer checks (patch by Walter
+    Harms).</li>
+
+    <li>accept terminal-id and add DA response for VT131,
+    VT132.</li>
+  </ul>
+
   <h1><a name="xterm_356" id="xterm_356">Patch #356 -
   2020/05/02</a></h1>
 
@@ -1155,7 +1238,7 @@
   <ul>
     <li>adjust fontsize data to handle a minor inconsistency from
     recent Xft versions (Debian #880407, adapted from patch by
-    Vincent Lefevre).</li>
+    Vincent Lef&egrave;vre).</li>
 
     <li>add a table to the manual page description of
     <code>forceBoxChars</code> to alert the reader to the special
@@ -4345,7 +4428,8 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
     <li>revert of <a href="#xterm_282">patch #282</a> change was
     incomplete (report by Jim Reisert).</li>
 
-    <li>fix typo in manpage (report by Vincent Lefevre).</li>
+    <li>fix typo in manpage (report by Vincent
+    Lef&egrave;vre).</li>
   </ul>
 
   <h1><a name="xterm_289" id="xterm_289">Patch #289 -
@@ -5374,7 +5458,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
 
     <li>append a timestamp to filename used in
     <code>printFileOnXError</code> feature, and restrict its
-    permissions (request by Vincent Lefevre).</li>
+    permissions (request by Vincent Lef&egrave;vre).</li>
 
     <li>add a check when cancelling cursor-blinking, in case the
     cursor is blinked off. Fix so that the cursor is repainted
@@ -5696,7 +5780,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
   <ul>
     <li>fix a regression in fontname logic from <a href=
     "#xterm_263">patch #263</a> changes (Debian #600707, reported
-    by Vincent Lefevre).</li>
+    by Vincent Lef&egrave;vre).</li>
 
     <li>revert modification of any-event/any-button protocol from
     <a href="#xterm_263">patch #263</a> changes. It interferes with
@@ -7130,7 +7214,7 @@ Go-Mono-Italic.ttf: "Go Mono" "Italic"
 
     <li>correct index expression used to set line-wrapping flag,
     making selection from scrollback work consistently (Debian
-    #430121, report by Vincent Lefevre).</li>
+    #430121, report by Vincent Lef&egrave;vre).</li>
 
     <li>amend changes to handshake in <a href="#xterm_226">patch
     #226</a> to accommodate Solaris, which relies on the extra
@@ -9994,8 +10078,8 @@ Klanderman).
     <li>modify logic for <code>metaSendsEscape</code> to allow it
     to work in a setup where the Meta-key is not recognized as a
     modifier by the key-translations logic (discussion of
-    eightBitInput with H.J.Lu). Note however that Vincent Lefevre
-    reported this in January).</li>
+    eightBitInput with H.J.Lu). Note however that Vincent
+    Lef&egrave;vre reported this in January).</li>
 
     <li>use null pointer values consistently, rather than literal
     "0", for ending variable-length argument lists, e.g., for
@@ -10129,7 +10213,7 @@ Klanderman).
   <ul>
     <li>correct a bug in selection: double clicking on a word which
     was partly scrolled off the screen may select that text (report
-    by Vincent Lefevre &lt;vincent@vinc17.org&gt;).</li>
+    by Vincent Lef&egrave;vre &lt;vincent@vinc17.org&gt;).</li>
 
     <li>implement <code>veryBoldColors</code> resource to control
     whether the corresponding video attribute such as

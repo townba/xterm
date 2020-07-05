@@ -1,4 +1,4 @@
-/* $XTermId: ptyx.h,v 1.992 2020/05/02 16:11:37 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.1003 2020/07/04 01:06:46 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -111,8 +111,6 @@
 #define TypeXtMallocN(type,n)	(type *)(void *)XtMalloc((Cardinal)(sizeof(type) * (size_t) (n)))
 #define TypeXtMalloc(type)	TypeXtMallocN(type, 1)
 
-/* use these to allocate partly-structured data */
-#define TextAlloc(n)		(char *)malloc(sizeof(char) * (size_t) ((n) + 1))
 #define CastMalloc(type)	(type *)malloc(sizeof(type))
 
 #define BumpBuffer(type, buffer, size, want) \
@@ -1275,12 +1273,18 @@ typedef enum {
 #if OPT_WIDE_ATTRS
     , psATR_STRIKEOUT = 9
 #endif
+    /* SGR 10-19 correspond to primary/alternate fonts, currently unused */
 #if OPT_ISO_COLORS
-    , psFG_COLOR = 10
-    , psBG_COLOR = 11
+    , psFG_COLOR_obs = 10
+    , psBG_COLOR_obs = 11
 #endif
 #if OPT_WIDE_ATTRS
     , psATR_DBL_UNDER = 21
+#endif
+    /* SGR 22-29 mostly are used to reset SGR 1-9 */
+#if OPT_ISO_COLORS
+    , psFG_COLOR = 30	/* stack maps many colors to one state */
+    , psBG_COLOR = 31
 #endif
     , MAX_PUSH_SGR
 } PushSGR;
@@ -2202,23 +2206,32 @@ typedef enum {
 	, STEADY_BAR
 } XtCursorStyle;
 
+#if OPT_GRAPHICS
+#define GraphicsId(screen) (\
+	(screen)->graphics_id \
+	 ? (screen)->graphics_id \
+	 : (screen)->terminal_id)
+#else
+#define GraphicsId(screen) (screen)->terminal_id
+#endif
+
 #if OPT_REGIS_GRAPHICS
 #define optRegisGraphics(screen) \
-	((screen)->terminal_id == 240 || \
-	 (screen)->terminal_id == 241 || \
-	 (screen)->terminal_id == 330 || \
-	 (screen)->terminal_id == 340)
+	(GraphicsId(screen) == 240 || \
+	 GraphicsId(screen) == 241 || \
+	 GraphicsId(screen) == 330 || \
+	 GraphicsId(screen) == 340)
 #else
 #define optRegisGraphics(screen) False
 #endif
 
 #if OPT_SIXEL_GRAPHICS
 #define optSixelGraphics(screen) \
-	((screen)->terminal_id == 240 || \
-	 (screen)->terminal_id == 241 || \
-	 (screen)->terminal_id == 330 || \
-	 (screen)->terminal_id == 340 || \
-	 (screen)->terminal_id == 382)
+	(GraphicsId(screen) == 240 || \
+	 GraphicsId(screen) == 241 || \
+	 GraphicsId(screen) == 330 || \
+	 GraphicsId(screen) == 340 || \
+	 GraphicsId(screen) == 382)
 #else
 #define optSixelGraphics(screen) False
 #endif
@@ -2623,6 +2636,8 @@ typedef struct {
 #endif
 
 #if OPT_GRAPHICS
+	String		graph_id;		/* resource for graphics_id */
+	int		graphics_id;		/* based on terminal_id   */
 	String		graphics_max_size;	/* given a size in pixels */
 	Dimension	graphics_max_wide;	/* ...corresponding width */
 	Dimension	graphics_max_high;	/* ...and height          */
@@ -3165,7 +3180,18 @@ typedef	struct {
 #endif
     } stack[MAX_SAVED_SGR];
 } SavedSGR;
-#endif
+
+typedef struct {
+    ScrnColors base;
+    ColorRes ansi[1];
+} ColorSlot;
+
+typedef struct {
+    int		used;		/* currently saved or restored	*/
+    int		last;		/* maximum number of saved palettes */
+    ColorSlot	*palettes[MAX_SAVED_SGR];
+} SavedColors;
+#endif /* OPT_XTERM_SGR */
 
 typedef struct _XtermWidgetRec {
     CorePart	core;
@@ -3196,6 +3222,7 @@ typedef struct _XtermWidgetRec {
     Work	work;		/* workspace (no resources)	*/
 #if OPT_XTERM_SGR
     SavedSGR	saved_sgr;
+    SavedColors	saved_colors;
 #endif
 } XtermWidgetRec, *XtermWidget;
 

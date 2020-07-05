@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.929 2020/04/19 16:41:30 tom Exp $ */
+/* $XTermId: misc.c,v 1.950 2020/07/05 19:30:28 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -1755,7 +1755,7 @@ RequestMaximize(XtermWidget xw, int maximize)
 {
     TScreen *screen = TScreenOf(xw);
     XWindowAttributes wm_attrs, vshell_attrs;
-    unsigned root_width, root_height;
+    unsigned root_width = 0, root_height = 0;
     Boolean success = False;
 
     TRACE(("RequestMaximize %d:%s\n",
@@ -3503,7 +3503,7 @@ ReportColorRequest(XtermWidget xw, int ndx, int final)
 }
 
 static Bool
-UpdateOldColors(XtermWidget xw GCC_UNUSED, ScrnColors * pNew)
+UpdateOldColors(XtermWidget xw, ScrnColors * pNew)
 {
     int i;
 
@@ -3939,6 +3939,9 @@ do_osc(XtermWidget xw, Char *oscbuf, size_t len, int final)
 	    xw->work.palette_changed = False;
 	    xtermRepaint(xw);
 	    break;
+	default:
+	    xtermNeedSwap(xw, 1);
+	    break;
 	}
     }
 
@@ -4217,7 +4220,7 @@ parse_decudk(XtermWidget xw, const char *cp)
 {
     while (*cp) {
 	const char *base = cp;
-	char *str = TextAlloc(strlen(cp) + 2);
+	char *str = malloc(strlen(cp) + 3);
 	unsigned key = 0;
 	int len = 0;
 
@@ -4834,13 +4837,13 @@ do_dcs(XtermWidget xw, Char *dcsbuf, size_t dcslen)
 #endif
 	/* FALLTHRU */
     default:
-	if (screen->terminal_id == 125 ||
+	if (GraphicsId(screen) == 125 ||
 	    screen->vtXX_level >= 2) {	/* VT220 */
 	    parse_ansi_params(&params, &cp);
 	    switch (params.a_final) {
 	    case 'p':
 #if OPT_REGIS_GRAPHICS
-		if (screen->terminal_id == 125 ||
+		if (GraphicsId(screen) == 125 ||
 		    optRegisGraphics(screen)) {
 		    parse_regis(xw, &params, cp);
 		}
@@ -4850,7 +4853,7 @@ do_dcs(XtermWidget xw, Char *dcsbuf, size_t dcslen)
 		break;
 	    case 'q':
 #if OPT_SIXEL_GRAPHICS
-		if (screen->terminal_id == 125 ||
+		if (GraphicsId(screen) == 125 ||
 		    optSixelGraphics(screen)) {
 		    (void) parse_sixel(xw, &params, cp);
 		}
@@ -6270,7 +6273,7 @@ xtermSetenv(const char *var, const char *value)
 	    environ = environ;
 	}
 
-	environ[found] = TextAlloc(1 + len + strlen(value));
+	environ[found] = malloc(2 + len + strlen(value));
 	if (environ[found] == 0) {
 	    xtermWarning("Cannot allocate environment %s\n", var);
 	    return;
@@ -6641,9 +6644,9 @@ sortedOpts(OptionHelp * options, XrmOptionDescRec * descs, Cardinal numDescs)
 			}
 			if (strncmp(mesg, opt_array[j].desc, strlen(mesg))) {
 			    if (strncmp(opt_array[j].desc, "turn ", (size_t) 5)) {
-				char *s = TextAlloc(strlen(mesg)
-						    + 1
-						    + strlen(opt_array[j].desc));
+				char *s = malloc(strlen(mesg)
+						 + strlen(opt_array[j].desc)
+						 + 2);
 				if (s != 0) {
 				    sprintf(s, "%s %s", mesg, opt_array[j].desc);
 				    opt_array[j].desc = s;
@@ -6696,7 +6699,7 @@ xtermEnvEncoding(void)
 #ifdef HAVE_LANGINFO_CODESET
 	result = nl_langinfo(CODESET);
 #else
-	char *locale = xtermEnvLocale();
+	const char *locale = xtermEnvLocale();
 	if (!strcmp(locale, "C") || !strcmp(locale, "POSIX")) {
 	    result = x_strdup("ASCII");
 	} else {
@@ -7229,5 +7232,145 @@ xtermPopSGR(XtermWidget xw)
 	       traceIFlags(xw->flags)));
 #endif
     }
+}
+
+#if OPT_ISO_COLORS
+static ColorSlot *
+allocColorSlot(XtermWidget xw, int slot)
+{
+    SavedColors *s = &(xw->saved_colors);
+    ColorSlot *result = NULL;
+
+    if (slot >= 0 && slot < MAX_SAVED_SGR) {
+	ColorSlot *palette;
+	if ((palette = s->palettes[slot]) == 0) {
+	    s->palettes[slot] = (ColorSlot *) calloc(1,
+						     sizeof(ColorSlot)
+						     + (sizeof(ColorRes)
+							* MAXCOLORS));
+	}
+	result = s->palettes[slot];
+    }
+    return result;
+}
+
+static void
+popOldColors(XtermWidget xw, ScrnColors * source)
+{
+    Boolean changed = False;
+    ScrnColors *target = xw->work.oldColors;
+
+    if (source->which != target->which) {
+	changed = True;
+    } else {
+	int n;
+	for (n = 0; n < NCOLORS; ++n) {
+	    if (COLOR_DEFINED(source, n)) {
+		if (COLOR_DEFINED(target, n)) {
+		    if (source->colors[n] != target->colors[n]) {
+			changed = True;
+			break;
+		    }
+		} else {
+		    changed = True;
+		    break;
+		}
+	    } else if (COLOR_DEFINED(target, n)) {
+		changed = True;
+		break;
+	    }
+	}
+    }
+    if (changed) {
+	ChangeColors(xw, source);
+	UpdateOldColors(xw, source);
+    }
+}
+#endif /* OPT_ISO_COLORS */
+
+#define DiffColorSlot(d,s,n) (memcmp((d), (s), (n) * sizeof(ColorRes)) ? True : False)
+#define CopyColorSlot(d,s,n) memcpy((d), (s), (n) * sizeof(ColorRes))
+
+/*
+ * By default, a "push" increments the stack after copying to the current
+ * slot.  But a specific target allows one to copy into a specific slot.
+ */
+void
+xtermPushColors(XtermWidget xw, int value)
+{
+#if OPT_ISO_COLORS
+    SavedColors *s = &(xw->saved_colors);
+    int pushed = s->used;
+    int actual = (value <= 0) ? pushed : (value - 1);
+
+    TRACE(("xtermPushColors %d:%d\n", actual, pushed));
+    if (actual < MAX_SAVED_SGR && actual >= 0) {
+	TScreen *screen = TScreenOf(xw);
+	ColorSlot *palette;
+
+	if ((palette = allocColorSlot(xw, actual)) != NULL) {
+	    GetColors(xw, &(palette->base));
+	    CopyColorSlot(&(palette->ansi[0]), screen->Acolors, MAXCOLORS);
+	    if (value < 0) {
+		s->used++;
+		if (s->last < s->used)
+		    s->last = s->used;
+	    } else {
+		s->used = value;
+	    }
+	}
+    }
+#else
+    (void) xw;
+    (void) value;
+#endif
+}
+
+void
+xtermPopColors(XtermWidget xw, int value)
+{
+#if OPT_ISO_COLORS
+    SavedColors *s = &(xw->saved_colors);
+    int popped = (s->used - 1);
+    int actual = (value <= 0) ? popped : (value - 1);
+
+    TRACE(("xtermPopColors %d:%d\n", actual, popped));
+    if (actual < MAX_SAVED_SGR && actual >= 0) {
+	TScreen *screen = TScreenOf(xw);
+	ColorSlot *palette;
+
+	if ((palette = s->palettes[actual]) != NULL) {
+	    Boolean changed = DiffColorSlot(screen->Acolors,
+					    palette->ansi,
+					    MAXCOLORS);
+
+	    GetOldColors(xw);
+	    popOldColors(xw, &(palette->base));
+	    CopyColorSlot(screen->Acolors, &(palette->ansi[0]), MAXCOLORS);
+	    s->used = actual;
+	    if (changed)
+		xtermRepaint(xw);
+	}
+    }
+#else
+    (void) xw;
+    (void) value;
+#endif
+}
+
+void
+xtermReportColors(XtermWidget xw)
+{
+    ANSI reply;
+    SavedColors *s = &(xw->saved_colors);
+
+    memset(&reply, 0, sizeof(reply));
+    reply.a_type = ANSI_CSI;
+    reply.a_pintro = '?';
+    reply.a_param[reply.a_nparam++] = (ParmType) s->used;
+    reply.a_param[reply.a_nparam++] = (ParmType) s->last;
+    reply.a_inters = '#';
+    reply.a_final = 'Q';
+    unparseseq(xw, &reply);
 }
 #endif /* OPT_XTERM_SGR */

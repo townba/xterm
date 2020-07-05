@@ -1,5 +1,5 @@
 '\" t
-.\" $XTermId: xterm.man,v 1.807 2020/04/14 00:17:39 tom Exp $
+.\" $XTermId: xterm.man,v 1.809 2020/07/03 23:05:42 tom Exp $
 .\"
 .\" Copyright 1996-2019,2020 by Thomas E. Dickey
 .\"
@@ -2936,6 +2936,20 @@ current word forward.
 If \*(``true\*('', the entire line is selected.
 The default is \*(``true\*(''.
 .TP 8
+.B "decGraphicsID\fP (class\fB DecGraphicsID\fP)"
+Allows a way to combine the graphics feature from certain DEC terminals
+(125, 240, 241, 330, 340 or 382) with other emulation levels which did
+not provide the graphics feature.
+As in \fBdecTerminalID\fP,
+leading non-digit characters are ignored,
+e.g., \*(``vt340\*('' and \*(``340\*('' are the same.
+.IP
+If the resource value is nonzero,
+\fI\*n\fP uses that emulation level when initializing the drawing region
+and decoding control sequences to draw graphics.
+.IP
+The default is \*(``0\*(''.
+.TP 8
 .B "decTerminalID\fP (class\fB DecTerminalID\fP)"
 Specifies the emulation level (100=VT100, 220=VT220, etc.), used to determine
 the type of response to a DA control sequence.
@@ -3993,12 +4007,12 @@ this resource controls the maximum size of a graph which can be displayed.
 The default is \*(``1000x1000\*('' (given as \fIwidth\fP by \fIheight\fP).
 .IP
 If the resource is \*(``auto\*('' then \fI\*n\fR will use the
-\fBdecTerminalID\fP resource:
+\fBdecGraphicsID\fP resource (or \fBdecTerminalID\fP if that is not set):
 .TS
 l l
 _ _
 r r.
-\fBResult\fR	\fBdecTerminalID\fR
+\fBResult\fR	\fBdecGraphicsID\fR
 768x400	125
 800x460	240
 800x460	241
@@ -4581,12 +4595,15 @@ The application using ReGIS may use the \*(``A\*('' option of
 the \*(``S\*('' command to adjust the coordinate space or change the
 addressable portion of the screen.
 .IP
-The default is \*(``1000x1000\*('' (given as \fIwidth\fP by \fIheight\fP).
-.IP
 \fI\*N\fR accepts a special resource value \*(``auto\*('',
-which tells \fI\*n\fR to use the \fBdecTerminalID\fP resource to
+which tells \fI\*n\fR to use the
+\fBdecGraphicsID\fP and
+\fBdecTerminalID\fP
+resources to
 set the default size based on the hardware terminal's limits.
 Those limits are the same as for the \fBmaxGraphicSize\fP resource.
+.IP
+The default is \*(``auto\*(''.
 .TP 8
 .B "renderFont\fP (class\fB RenderFont\fP)"
 If \fI\*n\fR is built with the Xft library,

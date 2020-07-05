@@ -1,4 +1,4 @@
-/* $XTermId: main.c,v 1.862 2020/04/14 20:46:37 tom Exp $ */
+/* $XTermId: main.c,v 1.864 2020/06/23 22:42:56 tom Exp $ */
 
 /*
  * Copyright 2002-2019,2020 by Thomas E. Dickey
@@ -136,6 +136,7 @@
 #include <grp.h>		/* initgroups() */
 #endif
 
+static void hungtty(int) GCC_NORETURN;
 static void Syntax(char *) GCC_NORETURN;
 static void HsSysError(int) GCC_NORETURN;
 
@@ -1555,7 +1556,6 @@ parseArg(int *num, char **argv, char **valuep)
     };
 #undef DATA
     /* *INDENT-ON* */
-
     XrmOptionDescRec *result = 0;
     Cardinal inlist;
     Cardinal limit = XtNumber(optionDescList) + XtNumber(opTable);
@@ -2577,12 +2577,14 @@ main(int argc, char *argv[]ENVP_ARG)
 	case 'b':
 	    if (strcmp(argv[0], "-baudrate"))
 		Syntax(*argv);
-	    argc--, argv++;
+	    argc--;
+	    argv++;
 	    continue;
 	case 'c':
 	    if (strcmp(argv[0], "-class"))
 		Syntax(*argv);
-	    argc--, argv++;
+	    argc--;
+	    argv++;
 	    continue;
 	case 'e':
 	    if (strcmp(argv[0], "-e"))
@@ -2592,7 +2594,8 @@ main(int argc, char *argv[]ENVP_ARG)
 	case 'i':
 	    if (strcmp(argv[0], "-into"))
 		Syntax(*argv);
-	    argc--, argv++;
+	    argc--;
+	    argv++;
 	    continue;
 
 	default:
@@ -5036,7 +5039,7 @@ spawnXTerm(XtermWidget xw, unsigned line_speed)
 	    signal(SIGHUP, SIG_DFL);
 #endif
 
-	    if ((shname_minus = TextAlloc(strlen(shname) + 1)) != 0) {
+	    if ((shname_minus = malloc(strlen(shname) + 2)) != 0) {
 		(void) strcpy(shname_minus, "-");
 		(void) strcat(shname_minus, shname);
 	    } else {

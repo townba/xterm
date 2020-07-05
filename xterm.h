@@ -1,4 +1,4 @@
-/* $XTermId: xterm.h,v 1.867 2020/04/14 22:17:18 tom Exp $ */
+/* $XTermId: xterm.h,v 1.872 2020/07/02 00:30:01 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -486,6 +486,7 @@ extern char **environ;
 #define XtNcursorUnderLine	"cursorUnderLine"
 #define XtNcutNewline		"cutNewline"
 #define XtNcutToBeginningOfLine	"cutToBeginningOfLine"
+#define XtNdecGraphicsID	"decGraphicsID"
 #define XtNdecTerminalID	"decTerminalID"
 #define XtNdefaultString	"defaultString"
 #define XtNdeleteIsDEL		"deleteIsDEL"
@@ -688,6 +689,7 @@ extern char **environ;
 #define XtCCursorUnderLine	"CursorUnderLine"
 #define XtCCutNewline		"CutNewline"
 #define XtCCutToBeginningOfLine	"CutToBeginningOfLine"
+#define XtCDecGraphicsID	"DecGraphicsID"
 #define XtCDecTerminalID	"DecTerminalID"
 #define XtCDefaultString	"DefaultString"
 #define XtCDeleteIsDEL		"DeleteIsDEL"
@@ -1185,7 +1187,7 @@ extern void end_vt_mode (void);
 extern void free_string(String value);
 extern void hide_tek_window (void);
 extern void hide_vt_window (void);
-extern void ice_error (IceConn /* iceConn */);
+extern void ice_error (IceConn /* iceConn */) GCC_NORETURN;
 extern void init_colored_cursor (Display * /* dpy */);
 extern void reset_decudk (XtermWidget /* xw */);
 extern void set_tek_visibility (Bool /* on */);
@@ -1285,8 +1287,11 @@ extern Bool xtermEnvUTF8(void);
 
 #if OPT_XTERM_SGR
 extern void xtermPushSGR (XtermWidget /* xw */, int /* value */);
-extern void xtermReportSGR (XtermWidget /* xw */, XTermRect * /* value */);
 extern void xtermPopSGR (XtermWidget /* xw */);
+extern void xtermReportSGR (XtermWidget /* xw */, XTermRect * /* value */);
+extern void xtermPushColors (XtermWidget /* xw */, int /* value */);
+extern void xtermPopColors (XtermWidget /* xw */, int /* value */);
+extern void xtermReportColors (XtermWidget /* xw */);
 #endif
 
 #ifdef ALLOWLOGGING
@@ -1538,6 +1543,7 @@ extern void decode_keyboard_type (XtermWidget /* xw */, struct XTERM_RESOURCE * 
 extern void decode_wcwidth (XtermWidget  /* xw */);
 extern void do_cd_xtra_scroll (XtermWidget /* xw */);
 extern void do_erase_display (XtermWidget /* xw */, int  /* param */, int  /* mode */);
+extern void do_erase_char (XtermWidget /* xw */, int  /* param */, int  /* mode */);
 extern void do_erase_line (XtermWidget /* xw */, int  /* param */, int  /* mode */);
 extern void do_ti_xtra_scroll (XtermWidget /* xw */);
 extern void getXtermSizeHints (XtermWidget /* xw */);

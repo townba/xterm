@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1748 2020/05/02 16:26:20 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1768 2020/07/02 19:33:54 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -134,6 +134,10 @@
 #include <charclass.h>
 #include <xstrings.h>
 #include <graphics.h>
+
+#ifdef NO_LEAKS
+#include <xtermcap.h>
+#endif
 
 typedef int (*BitFunc) (unsigned * /* p */ ,
 			unsigned /* mask */ );
@@ -726,6 +730,7 @@ static XtResource xterm_resources[] =
 #endif
 
 #if OPT_GRAPHICS
+    Sres(XtNdecGraphicsID, XtCDecGraphicsID, screen.graph_id, DFT_DECID),
     Sres(XtNmaxGraphicSize, XtCMaxGraphicSize, screen.graphics_max_size,
 	 "1000x1000"),
 #endif
@@ -2147,6 +2152,11 @@ repaintWhenPaletteChanged(XtermWidget xw, struct ParseState *sp)
     case CASE_ESC:
 	ignore = ((sp->parsestate == ansi_table) ||
 		  (sp->parsestate == sos_table));
+#if USE_DOUBLE_BUFFER
+	if (resource.buffered && TScreenOf(xw)->needSwap) {
+	    ignore = False;
+	}
+#endif
 	break;
     case CASE_OSC:
 	ignore = ((sp->parsestate == ansi_table) ||
@@ -2171,6 +2181,7 @@ repaintWhenPaletteChanged(XtermWidget xw, struct ParseState *sp)
 	TRACE(("repaintWhenPaletteChanged\n"));
 	xw->work.palette_changed = False;
 	xtermRepaint(xw);
+	xtermFlushDbe(xw);
     }
 }
 
@@ -2943,7 +2954,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	case CASE_ECH:
 	    TRACE(("CASE_ECH - erase char\n"));
 	    /* ECH */
-	    ClearRight(xw, one_if_default(0));
+	    do_erase_char(xw, one_if_default(0), OFF_PROTECT);
 	    ResetState(sp);
 	    break;
 
@@ -3031,6 +3042,17 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		 */
 		if (screen->terminal_id < 200) {
 		    switch (screen->terminal_id) {
+		    case 132:
+			reply.a_param[count++] = 4;	/* VT132 */
+#if OPT_REGIS_GRAPHICS
+			reply.a_param[count++] = 6;	/* no STP, AVO, GPO (ReGIS) */
+#else
+			reply.a_param[count++] = 2;	/* no STP, AVO, no GPO (ReGIS) */
+#endif
+			break;
+		    case 131:
+			reply.a_param[count++] = 7;	/* VT131 */
+			break;
 		    case 125:
 			reply.a_param[count++] = 12;	/* VT125 */
 #if OPT_REGIS_GRAPHICS
@@ -3223,7 +3245,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		    default:
 			TRACE(("...unexpected subparameter in SGR\n"));
 			item += skip;	/* ignore this */
-			op = 9999;	/* will never use this, anyway */
+			op = NPARAM;	/* will never use this, anyway */
 			break;
 		    }
 		}
@@ -3464,6 +3486,9 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 			clrDirectBG(xw->flags);
 			setExtendedBG(xw);
 		    });
+		    break;
+		default:
+		    skip += NPARAM;
 		    break;
 		}
 	    }
@@ -4478,7 +4503,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	    if (screen->vtXX_level >= 4) {
 		TRACE(("CASE_DECERA - Erase rectangular area\n"));
 		xtermParseRect(xw, ParamPair(0), &myRect);
-		ScrnFillRectangle(xw, &myRect, ' ', 0, True);
+		ScrnFillRectangle(xw, &myRect, ' ', xw->flags, True);
 	    }
 	    ResetState(sp);
 	    break;
@@ -4488,7 +4513,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		value = zero_if_default(0);
 
 		TRACE(("CASE_DECFRA - Fill rectangular area\n"));
-		if (nparam > 0 && IsLatin1(value)) {
+		if (nparam > 0 && CharWidth(value) > 0) {
 		    xtermParseRect(xw, ParamPair(1), &myRect);
 		    ScrnFillRectangle(xw, &myRect, value, xw->flags, True);
 		}
@@ -4702,6 +4727,14 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	    } else if (nparam > 0) {
 		for (count = 0; count < nparam; ++count) {
 		    item = zero_if_default(count);
+		    /* deprecated - for compatibility */
+#if OPT_ISO_COLORS
+		    if (item == psFG_COLOR_obs) {
+			item = psFG_COLOR;
+		    } else if (item == psBG_COLOR_obs) {
+			item = psBG_COLOR;
+		    }
+#endif
 		    if (item > 0 && item < MAX_PUSH_SGR) {
 			value |= (1 << (item - 1));
 		    }
@@ -4721,6 +4754,36 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	case CASE_XTERM_POP_SGR:
 	    TRACE(("CASE_XTERM_POP_SGR\n"));
 	    xtermPopSGR(xw);
+	    ResetState(sp);
+	    break;
+
+	case CASE_XTERM_PUSH_COLORS:
+	    TRACE(("CASE_XTERM_PUSH_COLORS\n"));
+	    if (nparam == 0) {
+		xtermPushColors(xw, DEFAULT);
+	    } else {
+		for (count = 0; count < nparam; ++count) {
+		    xtermPushColors(xw, GetParam(count));
+		}
+	    }
+	    ResetState(sp);
+	    break;
+
+	case CASE_XTERM_POP_COLORS:
+	    TRACE(("CASE_XTERM_POP_COLORS\n"));
+	    if (nparam == 0) {
+		xtermPopColors(xw, DEFAULT);
+	    } else {
+		for (count = 0; count < nparam; ++count) {
+		    xtermPopColors(xw, GetParam(count));
+		}
+	    }
+	    ResetState(sp);
+	    break;
+
+	case CASE_XTERM_REPORT_COLORS:
+	    TRACE(("CASE_XTERM_REPORT_COLORS\n"));
+	    xtermReportColors(xw);
 	    ResetState(sp);
 	    break;
 #endif
@@ -4759,9 +4822,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 
 	case CASE_REP:
 	    TRACE(("CASE_REP\n"));
-	    if (sp->lastchar >= 0 &&
-		sp->lastchar < 256 &&
-		sp->groundtable[E2A(sp->lastchar)] == CASE_PRINT) {
+	    if (CharWidth(sp->lastchar) > 0) {
 		IChar repeated[2];
 		count = one_if_default(0);
 		repeated[0] = (IChar) sp->lastchar;
@@ -4929,8 +4990,8 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	    ResetState(sp);
 	    break;
 
-	case CASE_SM_TITLE:
-	    TRACE(("CASE_SM_TITLE\n"));
+	case CASE_XTERM_SM_TITLE:
+	    TRACE(("CASE_XTERM_SM_TITLE\n"));
 	    if (nparam >= 1) {
 		int n;
 		for (n = 0; n < nparam; ++n) {
@@ -4944,8 +5005,8 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	    ResetState(sp);
 	    break;
 
-	case CASE_RM_TITLE:
-	    TRACE(("CASE_RM_TITLE\n"));
+	case CASE_XTERM_RM_TITLE:
+	    TRACE(("CASE_XTERM_RM_TITLE\n"));
 	    if (nparam >= 1) {
 		int n;
 		for (n = 0; n < nparam; ++n) {
@@ -5677,7 +5738,7 @@ dotext(XtermWidget xw,
 		    last_chomp = CharWidth(buf[n]);
 		    if (last_chomp <= 0) {
 			IChar ch = buf[n];
-			Bool eat_it = (ch > 127);
+			Bool eat_it = !screen->utf8_mode && (ch > 127);
 			if (ch == 0xad) {
 			    /*
 			     * Only display soft-hyphen if it happens to be at
@@ -7112,7 +7173,7 @@ property_to_string(XtermWidget xw, XTextProperty * text)
     TScreen *screen = TScreenOf(xw);
     Display *dpy = screen->display;
     char *result = 0;
-    char **list;
+    char **list = NULL;
     int length = 0;
     int rc;
 
@@ -7871,7 +7932,7 @@ CheckBufPtrs(TScreen *screen)
  * Swap buffer line pointers between alternate and regular screens.
  */
 void
-SwitchBufPtrs(TScreen *screen, int toBuf GCC_UNUSED)
+SwitchBufPtrs(TScreen *screen, int toBuf)
 {
     if (CheckBufPtrs(screen)) {
 #if OPT_SAVE_LINES
@@ -7879,6 +7940,7 @@ SwitchBufPtrs(TScreen *screen, int toBuf GCC_UNUSED)
 #else
 	size_t len = ScrnPointers(screen, (size_t) MaxRows(screen));
 
+	(void) toBuf;
 	memcpy(screen->save_ptr, screen->visbuf, len);
 	memcpy(screen->visbuf, screen->editBuf_index[1], len);
 	memcpy(screen->editBuf_index[1], screen->save_ptr, len);
@@ -8649,7 +8711,7 @@ vt100ResourceToString(XtermWidget xw, const char *name)
 		sprintf(result, "%d", *(int *) res_addr);
 	} else if (!strcmp(res_type, XtRFloat)) {
 	    if ((result = malloc(1 + (size_t) (3 * data->resource_size))) != 0)
-		sprintf(result, "%f", *(float *) res_addr);
+		sprintf(result, "%f", (double) (*(float *) res_addr));
 	} else if (!strcmp(res_type, XtRBoolean)) {
 	    if ((result = malloc((size_t) 6)) != 0)
 		strcpy(result, *(Boolean *) res_addr ? "true" : "false");
@@ -8659,6 +8721,29 @@ vt100ResourceToString(XtermWidget xw, const char *name)
     return result;
 }
 #endif /* OPT_XRES_QUERY */
+
+static int
+decodeTerminalID(const char *value)
+{
+    const char *s;
+    for (s = value; *s; s++) {
+	if (!isalpha(CharOf(*s)))
+	    break;
+    }
+    return atoi(value);
+}
+
+static int
+limitedTerminalID(int terminal_id)
+{
+    if (terminal_id < MIN_DECID)
+	terminal_id = MIN_DECID;
+    else if (terminal_id > MAX_DECID)
+	terminal_id = MAX_DECID;
+    else
+	terminal_id = atoi(DFT_DECID);
+    return terminal_id;
+}
 
 /* ARGSUSED */
 static void
@@ -8829,13 +8914,12 @@ VTInitialize(Widget wrequest,
     XtermWidget wnew = (XtermWidget) new_arg;
     Widget my_parent = SHELL_OF(wnew);
     int i;
-    const char *s;
 
 #if OPT_ISO_COLORS
     Bool color_ok;
 #endif
 
-#if OPT_COLOR_RES2
+#if OPT_ISO_COLORS && OPT_COLOR_RES2
     static XtResource fake_resources[] =
     {
 #if OPT_256_COLORS
@@ -8994,9 +9078,9 @@ VTInitialize(Widget wrequest,
     init_Bres(screen.scrollkey);
 
     init_Dres(screen.scale_height);
-    if (screen->scale_height < 0.9)
+    if (screen->scale_height < (float) 0.9)
 	screen->scale_height = (float) 0.9;
-    if (screen->scale_height > 1.5)
+    if (screen->scale_height > (float) 1.5)
 	screen->scale_height = (float) 1.5;
 
     init_Bres(misc.autoWrap);
@@ -9007,25 +9091,22 @@ VTInitialize(Widget wrequest,
     init_Sres(misc.T_geometry);
 
     init_Sres(screen.term_id);
-    for (s = TScreenOf(request)->term_id; *s; s++) {
-	if (!isalpha(CharOf(*s)))
-	    break;
-    }
-    switch (screen->terminal_id = atoi(s)) {
+    screen->terminal_id = decodeTerminalID(TScreenOf(request)->term_id);
+    switch (screen->terminal_id) {
     case 52:
     case 100:
     case 101:
     case 102:
+    case 125:			/* maybe graphics */
+    case 131:
+    case 132:			/* maybe graphics */
     case 220:
     case 320:
     case 420:
     case 510:
     case 520:
     case 525:
-#if OPT_GRAPHICS
-    case 125:
 	break;
-#endif
     default:
 #if OPT_REGIS_GRAPHICS
 	if (optRegisGraphics(screen))
@@ -9035,12 +9116,7 @@ VTInitialize(Widget wrequest,
 	if (optSixelGraphics(screen))
 	    break;
 #endif
-	if (screen->terminal_id < MIN_DECID)
-	    screen->terminal_id = MIN_DECID;
-	else if (screen->terminal_id > MAX_DECID)
-	    screen->terminal_id = MAX_DECID;
-	else
-	    screen->terminal_id = atoi(DFT_DECID);
+	screen->terminal_id = limitedTerminalID(screen->terminal_id);
 	break;
     }
     TRACE(("term_id '%s' -> terminal_id %d\n",
@@ -9684,6 +9760,24 @@ VTInitialize(Widget wrequest,
 #endif
 
 #if OPT_GRAPHICS
+    init_Sres(screen.graph_id);
+    screen->graphics_id = decodeTerminalID(TScreenOf(request)->graph_id);
+    switch (screen->graphics_id) {
+    case 125:
+    case 240:
+    case 241:
+    case 330:
+    case 340:
+    case 382:
+	break;
+    default:
+	screen->graphics_id = 0;
+	break;
+    }
+    TRACE(("graph_id '%s' -> graphics_id %d\n",
+	   screen->graph_id,
+	   screen->graphics_id));
+
     init_Ires(screen.numcolorregisters);
     TRACE(("initialized NUM_COLOR_REGISTERS to resource default: %d\n",
 	   screen->numcolorregisters));
@@ -9697,7 +9791,7 @@ VTInitialize(Widget wrequest,
     {
 	int native_w, native_h;
 
-	switch (screen->terminal_id) {
+	switch (GraphicsId(screen)) {
 	case 125:
 	    native_w = 768;
 	    native_h = 460;
@@ -9733,8 +9827,8 @@ VTInitialize(Widget wrequest,
 	screen->graphics_regis_def_high = 1000;
 	screen->graphics_regis_def_wide = 1000;
 	if (!x_strcasecmp(screen->graphics_regis_screensize, "auto")) {
-	    TRACE(("setting default ReGIS screensize based on terminal_id %d\n",
-		   screen->terminal_id));
+	    TRACE(("setting default ReGIS screensize based on graphics_id %d\n",
+		   GraphicsId(screen)));
 	    screen->graphics_regis_def_high = (Dimension) native_w;
 	    screen->graphics_regis_def_wide = (Dimension) native_h;
 	} else {
@@ -9770,8 +9864,8 @@ VTInitialize(Widget wrequest,
 	screen->graphics_max_high = 1000;
 	screen->graphics_max_wide = 1000;
 	if (!x_strcasecmp(screen->graphics_max_size, "auto")) {
-	    TRACE(("setting max graphics screensize based on terminal_id %d\n",
-		   screen->terminal_id));
+	    TRACE(("setting max graphics screensize based on graphics_id %d\n",
+		   GraphicsId(screen)));
 	    screen->graphics_max_high = (Dimension) native_w;
 	    screen->graphics_max_wide = (Dimension) native_h;
 	} else {
@@ -10023,6 +10117,9 @@ VTDestroy(Widget w GCC_UNUSED)
     for (n = 0; n < MAXCOLORS; n++) {
 	TRACE_FREE_LEAK(screen->Acolors[n].resource);
     }
+    for (n = 0; n < MAX_SAVED_SGR; n++) {
+	TRACE_FREE_LEAK(xw->saved_colors.palettes[n]);
+    }
 #endif
 #if OPT_COLOR_RES
     for (n = 0; n < NCOLORS; n++) {
@@ -10059,7 +10156,6 @@ VTDestroy(Widget w GCC_UNUSED)
 #endif
     TRACE_FREE_LEAK(xw->misc.T_geometry);
     TRACE_FREE_LEAK(xw->misc.geo_metry);
-    TRACE_FREE_LEAK(xw->screen.term_id);
 #if OPT_INPUT_METHOD
     cleanupInputMethod(xw);
     TRACE_FREE_LEAK(xw->misc.f_x);
@@ -10086,6 +10182,7 @@ VTDestroy(Widget w GCC_UNUSED)
     xtermCloseFonts(xw, screen->ifnts);
 #endif
     noleaks_cachedCgs(xw);
+    free_termcap(xw);
 
     TRACE_FREE_LEAK(screen->selection_targets_8bit);
 #if OPT_SELECT_REGEX
@@ -10210,6 +10307,9 @@ VTDestroy(Widget w GCC_UNUSED)
 	free(screen->selected_cells[n].data_buffer);
     }
 
+    if (defaultTranslations != xtermClassRec.core_class.tm_table) {
+	TRACE_FREE_LEAK(defaultTranslations);
+    }
     TRACE_FREE_LEAK(xtermClassRec.core_class.tm_table);
     TRACE_FREE_LEAK(xw->keyboard.extra_translations);
     TRACE_FREE_LEAK(xw->keyboard.shell_translations);
@@ -11366,7 +11466,7 @@ reverseCgs(XtermWidget xw, unsigned attr_flags, Bool hilite, int font)
 #endif
 	}
     }
-    return result;
+    return (int) result;
 }
 #endif
 
@@ -12077,7 +12177,7 @@ HandleBlinking(XtPointer closure, XtIntervalId * id GCC_UNUSED)
 #endif /* OPT_BLINK_CURS || OPT_BLINK_TEXT */
 
 void
-RestartBlinking(XtermWidget xw GCC_UNUSED)
+RestartBlinking(XtermWidget xw)
 {
 #if OPT_BLINK_CURS || OPT_BLINK_TEXT
     TScreen *screen = TScreenOf(xw);
@@ -12109,6 +12209,8 @@ RestartBlinking(XtermWidget xw GCC_UNUSED)
 	if (resume)
 	    StartBlinking(xw);
     }
+#else
+    (void) xw;
 #endif
 }
 
@@ -12938,6 +13040,7 @@ VTInitTranslations(void)
     TRACE(("result:\n%s\n", result));
 
     defaultTranslations = result;
+    free((void *) xtermClassRec.core_class.tm_table);
     xtermClassRec.core_class.tm_table = result;
 }
 
