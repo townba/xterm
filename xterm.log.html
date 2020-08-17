@@ -30,7 +30,7 @@
  * sale, use or other dealings in this Software without prior written        *
  * authorization.                                                            *
  *****************************************************************************
-  $XTermId: xterm.log.html,v 1.2218 2020/07/12 23:00:33 tom Exp $
+  $XTermId: xterm.log.html,v 1.2229 2020/08/17 22:54:03 tom Exp $
   -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 
@@ -73,6 +73,8 @@
   CHANGELOG</a>).</p>
 
   <ul>
+    <li><a href="#xterm_359">Patch #359 - 2020/08/17</a></li>
+
     <li><a href="#xterm_358">Patch #358 - 2020/07/12</a></li>
 
     <li><a href="#xterm_357">Patch #357 - 2020/07/05</a></li>
@@ -995,6 +997,47 @@
     <li><a href="#xterm_02">Patch #2 - 1996/1/7</a></li>
 
     <li><a href="#xterm_01">Patch #1 - 1996/1/6</a></li>
+  </ul>
+
+  <h1><a name="xterm_359" id="xterm_359">Patch #359 -
+  2020/08/17</a></h1>
+
+  <ul>
+    <li>add special case in <code>WriteText</code> to allow colors
+    8-15 to override <code>colorBDMode</code> (patch by Ingo
+    Br&uuml;ckl).</li>
+
+    <li>add <code>utf8Weblike</code> resource, to provide an
+    alternate scheme for handling ill-formed UTF-8 sequences
+    (adapted from patch by Dan Gohman).</li>
+
+    <li>improve computation for the number of lines needed to
+    scroll-up a SIXEL graphic (report/patch by Ben Wong).</li>
+
+    <li>correct manpage description for default value of
+    <code>disallowWindowOps</code> from changes in <a href=
+    "#xterm_331">xterm #331</a> (patch by Ben Wong).</li>
+
+    <li>correct a loop starting-point in
+    <code>refresh_graphics</code> from optimization in <a href=
+    "#xterm_358">patch #358</a> changes (report by Ben Wong).</li>
+
+    <li>add a new mouse mode 1016, which uses the same format as
+    mode 1006, but sends the mouse's position in pixels (suggested
+    by Igor van den Hoven).</li>
+
+    <li>fix an issue from <a href="#xterm_338">patch #338</a>
+    changes where only the first selection buffer specified in the
+    request would be updated using OSC 52 (patch by Michael
+    Gulick).</li>
+
+    <li>modify makefile/scripts to allow <code>DESTDIR</code> to
+    prefix the target directory for desktop-file-install (report by
+    Fred Heitkamp).</li>
+
+    <li>enable SIXEL feature by default.</li>
+
+    <li>update config.guess, config.sub</li>
   </ul>
 
   <h1><a name="xterm_358" id="xterm_358">Patch #358 -

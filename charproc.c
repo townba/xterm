@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1770 2020/07/12 15:47:18 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1772 2020/08/10 09:07:11 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -772,6 +772,7 @@ static XtResource xterm_resources[] =
     Bres(XtNmkWidth, XtCMkWidth, misc.mk_width, False),
     Bres(XtNprecompose, XtCPrecompose, screen.normalized_c, True),
     Bres(XtNutf8Latin1, XtCUtf8Latin1, screen.utf8_latin1, False),
+    Bres(XtNutf8Weblike, XtCUtf8Weblike, screen.utf8_weblike, False),
     Bres(XtNvt100Graphics, XtCVT100Graphics, screen.vt100_graphics, True),
     Bres(XtNwideChars, XtCWideChars, screen.wide_chars, False),
     Ires(XtNcombiningChars, XtCCombiningChars, screen.max_combining, 2),
@@ -6384,6 +6385,8 @@ dpmodes(XtermWidget xw, BitFunc func)
 	case srm_SGR_EXT_MODE_MOUSE:
 	    /* FALLTHRU */
 	case srm_URXVT_EXT_MODE_MOUSE:
+	    /* FALLTHRU */
+	case srm_PIXEL_POSITION_MOUSE:
 	    /*
 	     * Rather than choose an arbitrary precedence among the coordinate
 	     * modes, they are mutually exclusive.  For consistency, a reset is
@@ -6692,6 +6695,8 @@ savemodes(XtermWidget xw)
 	case srm_SGR_EXT_MODE_MOUSE:
 	    /* FALLTHRU */
 	case srm_URXVT_EXT_MODE_MOUSE:
+	    /* FALLTHRU */
+	case srm_PIXEL_POSITION_MOUSE:
 	    DoSM(DP_X_EXT_MOUSE, screen->extend_coords);
 	    break;
 	case srm_ALTERNATE_SCROLL:
@@ -7026,6 +7031,8 @@ restoremodes(XtermWidget xw)
 	case srm_SGR_EXT_MODE_MOUSE:
 	    /* FALLTHRU */
 	case srm_URXVT_EXT_MODE_MOUSE:
+	    /* FALLTHRU */
+	case srm_PIXEL_POSITION_MOUSE:
 	    DoRM(DP_X_EXT_MOUSE, screen->extend_coords);
 	    break;
 	case srm_ALLOW_ALTBUF:
@@ -9664,6 +9671,7 @@ VTInitialize(Widget wrequest,
     VTInitialize_locale(request);
     init_Bres(screen.normalized_c);
     init_Bres(screen.utf8_latin1);
+    init_Bres(screen.utf8_weblike);
 
 #if OPT_LUIT_PROG
     init_Bres(misc.callfilter);

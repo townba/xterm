@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.950 2020/07/05 19:30:28 tom Exp $ */
+/* $XTermId: misc.c,v 1.952 2020/08/03 23:19:49 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -3306,7 +3306,8 @@ ManipulateSelectionData(XtermWidget xw, TScreen *screen, char *buf, int final)
 			screen->selection_time =
 			    XtLastTimestampProcessed(TScreenOf(xw)->display);
 
-			for (j = 0, buf = old; j < n; ++j) {
+			for (j = 0; j < n; ++j) {
+			    buf = old;
 			    ClearSelectionBuffer(screen, select_args[j]);
 			    while (*buf != '\0') {
 				AppendToSelectionBuffer(screen,
@@ -5144,6 +5145,8 @@ do_dec_rqm(XtermWidget xw, int nparams, int *params)
 	case srm_SGR_EXT_MODE_MOUSE:
 	    /* FALLTHRU */
 	case srm_URXVT_EXT_MODE_MOUSE:
+	    /* FALLTHRU */
+	case srm_PIXEL_POSITION_MOUSE:
 	    result = MdBool(screen->extend_coords == params[0]);
 	    break;
 	case srm_ALTERNATE_SCROLL:

@@ -1,4 +1,4 @@
-/* $XTermId: graphics.c,v 1.87 2020/07/03 17:35:06 tom Exp $ */
+/* $XTermId: graphics.c,v 1.90 2020/08/06 19:57:58 tom Exp $ */
 
 /*
  * Copyright 2013-2019,2020 by Ross Combs
@@ -704,7 +704,7 @@ init_graphic(Graphic *graphic,
 					    graphic->max_height);
     unsigned i;
 
-    TRACE(("initializing graphic object\n"));
+    TRACE(("init_graphic at %d,%d\n", charrow, charcol));
 
     graphic->hidden = 0;
     graphic->dirty = 1;
@@ -1321,7 +1321,7 @@ refresh_graphics(XtermWidget xw,
     unsigned ii, jj;
     unsigned active_count;
     unsigned holes, non_holes;
-    int xx, yy, nn;
+    int xx, yy;
     ColorRegister *buffer;
 
     active_count = 0;
@@ -1490,7 +1490,7 @@ refresh_graphics(XtermWidget xw,
 	int y_max = draw_y_max - refresh_y;
 	int x_min = draw_x_min - refresh_x;
 	int x_max = draw_x_max - refresh_x;
-	const ColorRegister *base = buffer + y_min;
+	const ColorRegister *base = buffer + (y_min * refresh_w);
 
 	for (yy = y_min; yy <= y_max; yy++) {
 	    const ColorRegister *scan = base + x_min;
@@ -1597,6 +1597,7 @@ refresh_graphics(XtermWidget xw,
 	XImage *image;
 	char *imgdata;
 	unsigned image_w, image_h;
+	int nn;
 
 	memset(&xgcv, 0, sizeof(xgcv));
 	xgcv.graphics_exposures = False;
