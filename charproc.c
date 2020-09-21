@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1772 2020/08/10 09:07:11 tom Exp $ */
+/* $XTermId: charproc.c,v 1.1781 2020/09/19 16:44:40 Ross.Combs Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -520,6 +520,7 @@ static XtResource xterm_resources[] =
     Sres(XtNfont4, XtCFont4, screen.MenuFontName(fontMenu_font4), NULL),
     Sres(XtNfont5, XtCFont5, screen.MenuFontName(fontMenu_font5), NULL),
     Sres(XtNfont6, XtCFont6, screen.MenuFontName(fontMenu_font6), NULL),
+    Sres(XtNfont7, XtCFont7, screen.MenuFontName(fontMenu_font7), NULL),
 
     Sres(XtNanswerbackString, XtCAnswerbackString, screen.answer_back, ""),
     Sres(XtNboldFont, XtCBoldFont, misc.default_font.f_b, DEFBOLDFONT),
@@ -546,6 +547,7 @@ static XtResource xterm_resources[] =
     Sres(XtNkeyboardDialect, XtCKeyboardDialect, screen.keyboard_dialect, DFT_KBD_DIALECT),
     Sres(XtNprinterCommand, XtCPrinterCommand, SPS.printer_command, ""),
     Sres(XtNtekGeometry, XtCGeometry, misc.T_geometry, NULL),
+    Sres(XtNpointerFont, XtCPointerFont, screen.cursor_font_name, NULL),
 
     Tres(XtNcursorColor, XtCCursorColor, TEXT_CURSOR, XtDefaultForeground),
     Tres(XtNforeground, XtCForeground, TEXT_FG, XtDefaultForeground),
@@ -557,9 +559,7 @@ static XtResource xterm_resources[] =
      XtOffsetOf(XtermWidgetRec, misc.resizeGravity),
      XtRImmediate, (XtPointer) SouthWestGravity},
 
-    {XtNpointerShape, XtCCursor, XtRCursor, sizeof(Cursor),
-     XtOffsetOf(XtermWidgetRec, screen.pointer_cursor),
-     XtRString, (XtPointer) "xterm"},
+    Sres(XtNpointerShape, XtCCursor, screen.pointer_shape, "xterm"),
 
 #ifdef ALLOWLOGGING
     Bres(XtNlogInhibit, XtCLogInhibit, misc.logInhibit, False),
@@ -730,7 +730,7 @@ static XtResource xterm_resources[] =
 #endif
 
 #if OPT_GRAPHICS
-    Sres(XtNdecGraphicsID, XtCDecGraphicsID, screen.graph_id, DFT_DECID),
+    Sres(XtNdecGraphicsID, XtCDecGraphicsID, screen.graph_termid, DFT_DECID),
     Sres(XtNmaxGraphicSize, XtCMaxGraphicSize, screen.graphics_max_size,
 	 "1000x1000"),
 #endif
@@ -3990,7 +3990,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		     * Both the VT220 manual and DEC STD 070 (which documents
 		     * levels 1-4 in detail) state that it is a soft reset.
 		     *
-		     * Perhaps both sets of manuals are right (unlikely). 
+		     * Perhaps both sets of manuals are right (unlikely).
 		     * Kermit says it's soft.
 		     */
 		    ReallyReset(xw, False, False);
@@ -6261,34 +6261,49 @@ dpmodes(XtermWidget xw, BitFunc func)
 		}
 	    }
 	    break;
-	case srm_MARGIN_BELL:	/* margin bell                  */
-	    set_bool_mode(screen->marginbell);
-	    if (!screen->marginbell)
-		screen->bellArmed = -1;
-	    update_marginbell();
-	    break;
-	case srm_REVERSEWRAP:	/* reverse wraparound   */
-	    (*func) (&xw->flags, REVERSEWRAP);
-	    update_reversewrap();
-	    break;
-#ifdef ALLOWLOGGING
-	case srm_ALLOWLOGGING:	/* logging              */
-#ifdef ALLOWLOGFILEONOFF
-	    /*
-	     * if this feature is enabled, logging may be
-	     * enabled and disabled via escape sequences.
-	     */
-	    if (IsSM())
-		StartLog(xw);
-	    else
-		CloseLog(xw);
-#else
-	    Bell(xw, XkbBI_Info, 0);
-	    Bell(xw, XkbBI_Info, 0);
-#endif /* ALLOWLOGFILEONOFF */
+#if OPT_PRINT_GRAPHICS
+	case srm_DECGEPM:	/* Graphics Expanded Print Mode */
+	    set_bool_mode(screen->graphics_expanded_print_mode);
 	    break;
 #endif
-	case srm_OPT_ALTBUF_CURSOR:	/* alternate buffer & cursor */
+	case srm_MARGIN_BELL:	/* margin bell (xterm) also DECGPCM (Graphics Print Color Mode) */
+	    if_PRINT_GRAPHICS2(set_bool_mode(screen->graphics_print_color_mode)) {
+		set_bool_mode(screen->marginbell);
+		if (!screen->marginbell)
+		    screen->bellArmed = -1;
+		update_marginbell();
+	    }
+	    break;
+	case srm_REVERSEWRAP:	/* reverse wraparound (xterm) also DECGPCS (Graphics Print Color Syntax) */
+	    if_PRINT_GRAPHICS2(set_bool_mode(screen->graphics_print_color_syntax)) {
+		(*func) (&xw->flags, REVERSEWRAP);
+		update_reversewrap();
+	    }
+	    break;
+#ifdef ALLOWLOGGING
+	case srm_ALLOWLOGGING:	/* logging (xterm) also DECGPBM (Graphics Print Background Mode) */
+	    if_PRINT_GRAPHICS2(set_bool_mode(screen->graphics_print_background_mode)) {
+#ifdef ALLOWLOGFILEONOFF
+		/*
+		 * if this feature is enabled, logging may be
+		 * enabled and disabled via escape sequences.
+		 */
+		if (IsSM())
+		    StartLog(xw);
+		else
+		    CloseLog(xw);
+#else
+		Bell(xw, XkbBI_Info, 0);
+		Bell(xw, XkbBI_Info, 0);
+#endif /* ALLOWLOGFILEONOFF */
+	    }
+	    break;
+#elif OPT_PRINT_GRAPHICS
+	case srm_DECGPBM:	/* Graphics Print Background Mode */
+	    set_bool_mode(screen->graphics_print_background_mode);
+	    break;
+#endif /* ALLOWLOGGING */
+	case srm_OPT_ALTBUF_CURSOR:	/* optional alternate buffer and clear (xterm) */
 	    if (!xw->misc.titeInhibit) {
 		if (IsSM()) {
 		    CursorSave(xw);
@@ -6302,20 +6317,30 @@ dpmodes(XtermWidget xw, BitFunc func)
 		do_ti_xtra_scroll(xw);
 	    }
 	    break;
-	case srm_OPT_ALTBUF:
-	    /* FALLTHRU */
-	case srm_ALTBUF:	/* alternate buffer */
+	case srm_OPT_ALTBUF:	/* optional alternate buffer and clear (xterm) */
 	    if (!xw->misc.titeInhibit) {
 		if (IsSM()) {
 		    ToAlternate(xw, False);
 		} else {
-		    if (screen->whichBuf
-			&& (code == 1047))
+		    if (screen->whichBuf)
 			ClearScreen(xw);
 		    FromAlternate(xw);
 		}
 	    } else if (IsSM()) {
 		do_ti_xtra_scroll(xw);
+	    }
+	    break;
+	case srm_ALTBUF:	/* alternate buffer (xterm) also DECGRPM (Graphics Rotated Print Mode) */
+	    if_PRINT_GRAPHICS2(set_bool_mode(screen->graphics_rotated_print_mode)) {
+		if (!xw->misc.titeInhibit) {
+		    if (IsSM()) {
+			ToAlternate(xw, False);
+		    } else {
+			FromAlternate(xw);
+		    }
+		} else if (IsSM()) {
+		    do_ti_xtra_scroll(xw);
+		}
 	    }
 	    break;
 	case srm_DECNKM:
@@ -6640,23 +6665,43 @@ savemodes(XtermWidget xw)
 		DoSM(DP_DECNRCM, xw->flags & NATIONAL);
 	    }
 	    break;
-	case srm_MARGIN_BELL:	/* margin bell                  */
-	    DoSM(DP_X_MARGIN, screen->marginbell);
-	    break;
-	case srm_REVERSEWRAP:	/* reverse wraparound   */
-	    DoSM(DP_X_REVWRAP, xw->flags & REVERSEWRAP);
-	    break;
-#ifdef ALLOWLOGGING
-	case srm_ALLOWLOGGING:	/* logging              */
-	    DoSM(DP_X_LOGGING, screen->logging);
+#if OPT_PRINT_GRAPHICS
+	case srm_DECGEPM:	/* Graphics Expanded Print Mode */
+	    DoSM(DP_DECGEPM, screen->graphics_expanded_print_mode);
 	    break;
 #endif
-	case srm_OPT_ALTBUF_CURSOR:
+	case srm_MARGIN_BELL:	/* margin bell (xterm) also DECGPCM (Graphics Print Color Mode) */
+	    if_PRINT_GRAPHICS2(DoSM(DP_DECGPCM, screen->graphics_print_color_mode)) {
+		DoSM(DP_X_MARGIN, screen->marginbell);
+	    }
+	    break;
+	case srm_REVERSEWRAP:	/* reverse wraparound (xterm) also DECGPCS (Graphics Print Color Syntax) */
+	    if_PRINT_GRAPHICS2(DoSM(DP_DECGPCS, screen->graphics_print_color_syntax)) {
+		DoSM(DP_X_REVWRAP, xw->flags & REVERSEWRAP);
+	    }
+	    break;
+#ifdef ALLOWLOGGING
+	case srm_ALLOWLOGGING:	/* logging (xterm) also DECGPBM (Graphics Print Background Mode) */
+	    if_PRINT_GRAPHICS2(DoSM(DP_DECGPBM, screen->graphics_print_background_mode)) {
+#ifdef ALLOWLOGFILEONOFF
+		DoSM(DP_X_LOGGING, screen->logging);
+#endif /* ALLOWLOGFILEONOFF */
+	    }
+	    break;
+#elif OPT_PRINT_GRAPHICS
+	case srm_DECGPBM:	/* Graphics Print Background Mode */
+	    DoSM(DP_DECGPBM, screen->graphics_print_background_mode);
+	    break;
+#endif /* ALLOWLOGGING */
+	case srm_OPT_ALTBUF_CURSOR:	/* optional alternate buffer and clear (xterm) */
 	    /* FALLTHRU */
-	case srm_OPT_ALTBUF:
-	    /* FALLTHRU */
-	case srm_ALTBUF:	/* alternate buffer             */
+	case srm_OPT_ALTBUF:	/* optional alternate buffer and clear (xterm) */
 	    DoSM(DP_X_ALTBUF, screen->whichBuf);
+	    break;
+	case srm_ALTBUF:	/* alternate buffer (xterm) also DECGRPM (Graphics Rotated Print Mode) */
+	    if_PRINT_GRAPHICS2(DoSM(DP_DECGRPM, screen->graphics_rotated_print_mode)) {
+		DoSM(DP_X_ALTBUF, screen->whichBuf);
+	    }
 	    break;
 	case srm_DECNKM:
 	    DoSM(DP_DECKPAM, xw->keyboard.flags & MODE_DECKPAM);
@@ -6949,31 +6994,44 @@ restoremodes(XtermWidget xw)
 		    modified_DECNRCM(xw);
 	    }
 	    break;
-	case srm_MARGIN_BELL:	/* margin bell                  */
-	    if ((DoRM(DP_X_MARGIN, screen->marginbell)) == 0)
-		screen->bellArmed = -1;
-	    update_marginbell();
-	    break;
-	case srm_REVERSEWRAP:	/* reverse wraparound   */
-	    bitcpy(&xw->flags, screen->save_modes[DP_X_REVWRAP], REVERSEWRAP);
-	    update_reversewrap();
-	    break;
-#ifdef ALLOWLOGGING
-	case srm_ALLOWLOGGING:	/* logging              */
-#ifdef ALLOWLOGFILEONOFF
-	    if (screen->save_modes[DP_X_LOGGING])
-		StartLog(xw);
-	    else
-		CloseLog(xw);
-#endif /* ALLOWLOGFILEONOFF */
-	    /* update_logging done by StartLog and CloseLog */
+#if OPT_PRINT_GRAPHICS
+	case srm_DECGEPM:	/* Graphics Expanded Print Mode */
+	    DoRM(DP_DECGEPM, screen->graphics_expanded_print_mode);
 	    break;
 #endif
-	case srm_OPT_ALTBUF_CURSOR:	/* alternate buffer & cursor */
+	case srm_MARGIN_BELL:	/* margin bell (xterm) also DECGPCM (Graphics Print Color Mode) */
+	    if_PRINT_GRAPHICS2(DoRM(DP_DECGPCM, screen->graphics_print_color_mode)) {
+		if ((DoRM(DP_X_MARGIN, screen->marginbell)) == 0)
+		    screen->bellArmed = -1;
+		update_marginbell();
+	    }
+	    break;
+	case srm_REVERSEWRAP:	/* reverse wraparound (xterm) also DECGPCS (Graphics Print Color Syntax) */
+	    if_PRINT_GRAPHICS2(DoRM(DP_DECGPCS, screen->graphics_print_color_syntax)) {
+		bitcpy(&xw->flags, screen->save_modes[DP_X_REVWRAP], REVERSEWRAP);
+		update_reversewrap();
+	    }
+	    break;
+#ifdef ALLOWLOGGING
+	case srm_ALLOWLOGGING:	/* logging (xterm) also DECGPBM (Graphics Print Background Mode) */
+	    if_PRINT_GRAPHICS2(DoRM(DP_DECGPBM, screen->graphics_print_background_mode)) {
+#ifdef ALLOWLOGFILEONOFF
+		if (screen->save_modes[DP_X_LOGGING])
+		    StartLog(xw);
+		else
+		    CloseLog(xw);
+#endif /* ALLOWLOGFILEONOFF */
+		/* update_logging done by StartLog and CloseLog */
+	    }
+	    break;
+#elif OPT_PRINT_GRAPHICS
+	case srm_DECGPBM:	/* Graphics Print Background Mode */
+	    DoRM(DP_DECGPBM, screen->graphics_print_background_mode);
+	    break;
+#endif /* ALLOWLOGGING */
+	case srm_OPT_ALTBUF_CURSOR:	/* optional alternate buffer and clear (xterm) */
 	    /* FALLTHRU */
-	case srm_OPT_ALTBUF:
-	    /* FALLTHRU */
-	case srm_ALTBUF:	/* alternate buffer */
+	case srm_OPT_ALTBUF:	/* optional alternate buffer and clear (xterm) */
 	    if (!xw->misc.titeInhibit) {
 		if (screen->save_modes[DP_X_ALTBUF])
 		    ToAlternate(xw, False);
@@ -6982,6 +7040,19 @@ restoremodes(XtermWidget xw)
 		/* update_altscreen done by ToAlt and FromAlt */
 	    } else if (screen->save_modes[DP_X_ALTBUF]) {
 		do_ti_xtra_scroll(xw);
+	    }
+	    break;
+	case srm_ALTBUF:	/* alternate buffer (xterm) also DECGRPM (Graphics Rotated Print Mode) */
+	    if_PRINT_GRAPHICS2(DoRM(DP_DECGRPM, screen->graphics_rotated_print_mode)) {
+		if (!xw->misc.titeInhibit) {
+		    if (screen->save_modes[DP_X_ALTBUF])
+			ToAlternate(xw, False);
+		    else
+			FromAlternate(xw);
+		    /* update_altscreen done by ToAlt and FromAlt */
+		} else if (screen->save_modes[DP_X_ALTBUF]) {
+		    do_ti_xtra_scroll(xw);
+		}
 	    }
 	    break;
 	case srm_DECNKM:
@@ -8729,6 +8800,12 @@ vt100ResourceToString(XtermWidget xw, const char *name)
 }
 #endif /* OPT_XRES_QUERY */
 
+/*
+ * Decode a terminal-ID or graphics-terminal-ID, using the default terminal-ID
+ * if the value is outside a (looser) range than limitedTerminalID.  This uses
+ * a wider range, to avoid being a nuisance when using X resources with
+ * different configurations of xterm.
+ */
 static int
 decodeTerminalID(const char *value)
 {
@@ -8749,6 +8826,12 @@ decodeTerminalID(const char *value)
     return (int) result;
 }
 
+/*
+ * Ensures that the value returned by decodeTerminalID is either in the range
+ * of IDs matching a known terminal, or (failing that), set to the built-in
+ * default.  The DA response relies on having the ID being set to a known
+ * value.
+ */
 static int
 limitedTerminalID(int terminal_id)
 {
@@ -9108,20 +9191,27 @@ VTInitialize(Widget wrequest,
 
     init_Sres(screen.term_id);
     screen->terminal_id = decodeTerminalID(TScreenOf(request)->term_id);
+    /*
+     * (1) If a known terminal model, and not a graphical terminal, preserve
+     *     the terminal id.
+     * (2) Otherwise, if ReGIS or sixel graphics are enabled, preserve the ID,
+     *     even if it is not a known terminal.
+     * (3) Otherwise force the terminal ID to the min, max, or VT420 depending
+     *     on the input.
+     */
     switch (screen->terminal_id) {
-    case 52:
+    case 52:			/* MIN_DECID */
     case 100:
     case 101:
     case 102:
-    case 125:			/* maybe graphics */
     case 131:
-    case 132:			/* maybe graphics */
+    case 132:
     case 220:
     case 320:
-    case 420:
+    case 420:			/* DFT_DECID, unless overridden in configure */
     case 510:
     case 520:
-    case 525:
+    case 525:			/* MAX_DECID */
 	break;
     default:
 #if OPT_REGIS_GRAPHICS
@@ -9222,6 +9312,9 @@ VTInitialize(Widget wrequest,
 #endif
 
     init_Sres(screen.keyboard_dialect);
+
+    init_Sres(screen.cursor_font_name);
+    init_Sres(screen.pointer_shape);
 
     init_Bres(screen.input_eight_bits);
     init_Bres(screen.output_eight_bits);
@@ -9777,9 +9870,9 @@ VTInitialize(Widget wrequest,
 #endif
 
 #if OPT_GRAPHICS
-    init_Sres(screen.graph_id);
-    screen->graphics_id = decodeTerminalID(TScreenOf(request)->graph_id);
-    switch (screen->graphics_id) {
+    init_Sres(screen.graph_termid);
+    screen->graphics_termid = decodeTerminalID(TScreenOf(request)->graph_termid);
+    switch (screen->graphics_termid) {
     case 125:
     case 240:
     case 241:
@@ -9788,12 +9881,12 @@ VTInitialize(Widget wrequest,
     case 382:
 	break;
     default:
-	screen->graphics_id = 0;
+	screen->graphics_termid = 0;
 	break;
     }
-    TRACE(("graph_id '%s' -> graphics_id %d\n",
-	   screen->graph_id,
-	   screen->graphics_id));
+    TRACE(("graph_termid '%s' -> graphics_termid %d\n",
+	   screen->graph_termid,
+	   screen->graphics_termid));
 
     init_Ires(screen.numcolorregisters);
     TRACE(("initialized NUM_COLOR_REGISTERS to resource default: %d\n",
@@ -9808,7 +9901,7 @@ VTInitialize(Widget wrequest,
     {
 	int native_w, native_h;
 
-	switch (GraphicsId(screen)) {
+	switch (GraphicsTermId(screen)) {
 	case 125:
 	    native_w = 768;
 	    native_h = 460;
@@ -9820,11 +9913,11 @@ VTInitialize(Widget wrequest,
 	    native_h = 460;
 	    break;
 	case 330:
+	    /* FALLTHRU */
+	case 340:
 	    native_w = 800;
 	    native_h = 480;
 	    break;
-	case 340:
-	    /* FALLTHRU */
 	default:
 	    native_w = 800;
 	    native_h = 480;
@@ -9845,7 +9938,7 @@ VTInitialize(Widget wrequest,
 	screen->graphics_regis_def_wide = 1000;
 	if (!x_strcasecmp(screen->graphics_regis_screensize, "auto")) {
 	    TRACE(("setting default ReGIS screensize based on graphics_id %d\n",
-		   GraphicsId(screen)));
+		   GraphicsTermId(screen)));
 	    screen->graphics_regis_def_high = (Dimension) native_w;
 	    screen->graphics_regis_def_wide = (Dimension) native_h;
 	} else {
@@ -9882,7 +9975,7 @@ VTInitialize(Widget wrequest,
 	screen->graphics_max_wide = 1000;
 	if (!x_strcasecmp(screen->graphics_max_size, "auto")) {
 	    TRACE(("setting max graphics screensize based on graphics_id %d\n",
-		   GraphicsId(screen)));
+		   GraphicsTermId(screen)));
 	    screen->graphics_max_high = (Dimension) native_w;
 	    screen->graphics_max_wide = (Dimension) native_h;
 	} else {
@@ -9928,8 +10021,14 @@ VTInitialize(Widget wrequest,
 
 #if OPT_SIXEL_GRAPHICS
     init_Bres(screen.sixel_scrolls_right);
-    TRACE(("initialized SIXEL_SCROLLS_RIGHT to resource default: %s\n",
-	   BtoS(screen->sixel_scrolls_right)));
+#endif
+#if OPT_PRINT_GRAPHICS
+    init_Bres(screen.graphics_print_to_host);
+    init_Bres(screen.graphics_expanded_print_mode);
+    init_Bres(screen.graphics_print_color_mode);
+    init_Bres(screen.graphics_print_color_syntax);
+    init_Bres(screen.graphics_print_background_mode);
+    init_Bres(screen.graphics_rotated_print_mode);
 #endif
 
     /* look for focus related events on the shell, because we need
@@ -10164,6 +10263,8 @@ VTDestroy(Widget w GCC_UNUSED)
 	TRACE_FREE_LEAK(screen->editBuf_index[n]);
     }
     TRACE_FREE_LEAK(screen->keyboard_dialect);
+    TRACE_FREE_LEAK(screen->cursor_font_name);
+    TRACE_FREE_LEAK(screen->pointer_shape);
     TRACE_FREE_LEAK(screen->term_id);
 #if OPT_WIDE_CHARS
 #if OPT_LUIT_PROG
@@ -10235,11 +10336,9 @@ VTDestroy(Widget w GCC_UNUSED)
     TRACE_FREE_LEAK(screen->logfile);
 #endif
     TRACE_FREE_LEAK(screen->eight_bit_meta_s);
-    TRACE_FREE_LEAK(screen->term_id);
     TRACE_FREE_LEAK(screen->charClass);
     TRACE_FREE_LEAK(screen->answer_back);
     TRACE_FREE_LEAK(screen->printer_state.printer_command);
-    TRACE_FREE_LEAK(screen->keyboard_dialect);
     TRACE_FREE_LEAK(screen->disallowedColorOps);
     TRACE_FREE_LEAK(screen->disallowedFontOps);
     TRACE_FREE_LEAK(screen->disallowedMouseOps);
@@ -10595,6 +10694,107 @@ initBorderGC(XtermWidget xw, VTwin *win)
 #endif
 }
 
+/* adapted from <X11/cursorfont.h> */
+static int
+LookupCursorShape(const char *name)
+{
+#define DATA(name) { XC_##name, #name }
+    static struct {
+	int code;
+	const char name[25];
+    } table[] = {
+	DATA(X_cursor),
+	    DATA(arrow),
+	    DATA(based_arrow_down),
+	    DATA(based_arrow_up),
+	    DATA(boat),
+	    DATA(bogosity),
+	    DATA(bottom_left_corner),
+	    DATA(bottom_right_corner),
+	    DATA(bottom_side),
+	    DATA(bottom_tee),
+	    DATA(box_spiral),
+	    DATA(center_ptr),
+	    DATA(circle),
+	    DATA(clock),
+	    DATA(coffee_mug),
+	    DATA(cross),
+	    DATA(cross_reverse),
+	    DATA(crosshair),
+	    DATA(diamond_cross),
+	    DATA(dot),
+	    DATA(dotbox),
+	    DATA(double_arrow),
+	    DATA(draft_large),
+	    DATA(draft_small),
+	    DATA(draped_box),
+	    DATA(exchange),
+	    DATA(fleur),
+	    DATA(gobbler),
+	    DATA(gumby),
+	    DATA(hand1),
+	    DATA(hand2),
+	    DATA(heart),
+	    DATA(icon),
+	    DATA(iron_cross),
+	    DATA(left_ptr),
+	    DATA(left_side),
+	    DATA(left_tee),
+	    DATA(leftbutton),
+	    DATA(ll_angle),
+	    DATA(lr_angle),
+	    DATA(man),
+	    DATA(middlebutton),
+	    DATA(mouse),
+	    DATA(pencil),
+	    DATA(pirate),
+	    DATA(plus),
+	    DATA(question_arrow),
+	    DATA(right_ptr),
+	    DATA(right_side),
+	    DATA(right_tee),
+	    DATA(rightbutton),
+	    DATA(rtl_logo),
+	    DATA(sailboat),
+	    DATA(sb_down_arrow),
+	    DATA(sb_h_double_arrow),
+	    DATA(sb_left_arrow),
+	    DATA(sb_right_arrow),
+	    DATA(sb_up_arrow),
+	    DATA(sb_v_double_arrow),
+	    DATA(shuttle),
+	    DATA(sizing),
+	    DATA(spider),
+	    DATA(spraycan),
+	    DATA(star),
+	    DATA(target),
+	    DATA(tcross),
+	    DATA(top_left_arrow),
+	    DATA(top_left_corner),
+	    DATA(top_right_corner),
+	    DATA(top_side),
+	    DATA(top_tee),
+	    DATA(trek),
+	    DATA(ul_angle),
+	    DATA(umbrella),
+	    DATA(ur_angle),
+	    DATA(watch),
+	    DATA(xterm),
+    };
+#undef DATA
+    Cardinal j;
+    int result = -1;
+    if (!IsEmpty(name)) {
+	for (j = 0; j < XtNumber(table); ++j) {
+	    if (!strcmp(name, table[j].name)) {
+		result = table[j].code;
+		break;
+	    }
+	}
+    }
+    return result;
+}
+
 /*ARGSUSED*/
 static void
 VTRealize(Widget w,
@@ -10657,12 +10857,22 @@ VTRealize(Widget w,
 #endif
 
     /* making cursor */
-    if (!screen->pointer_cursor) {
+    if (screen->pointer_cursor == None) {
+	unsigned shape = XC_xterm;
+	int other = LookupCursorShape(screen->pointer_shape);
+
+	TRACE(("looked up shape index %d from shape name \"%s\"\n", other,
+	       screen->pointer_shape));
+	if (other >= 0)
+	    shape = (unsigned) other;
+
+	TRACE(("creating text pointer cursor from shape %d\n", shape));
 	screen->pointer_cursor =
-	    make_colored_cursor(XC_xterm,
+	    make_colored_cursor(shape,
 				T_COLOR(screen, MOUSE_FG),
 				T_COLOR(screen, MOUSE_BG));
     } else {
+	TRACE(("recoloring existing text pointer cursor\n"));
 	recolor_cursor(screen,
 		       screen->pointer_cursor,
 		       T_COLOR(screen, MOUSE_FG),
@@ -11831,6 +12041,9 @@ ShowCursor(void)
 		xtermLoadItalics(xw);
 		setCgsFont(xw, currentWin, currentCgs,
 			   getter(screen, which_font));
+		getter = (((xw->flags & ATR_ITALIC) && UseItalicFont(screen))
+			  ? getItalicFont
+			  : getNormalFont);
 	    }
 	    currentGC = getCgsGC(xw, currentWin, currentCgs);
 #endif /* OPT_WIDE_ATTRS */
@@ -11999,6 +12212,9 @@ HideCursor(void)
 	    setCgsFont(xw, WhichVWin(screen),
 		       (CgsEnum) which_Cgs,
 		       getter(screen, which_font));
+	    getter = (((xw->flags & ATR_ITALIC) && UseItalicFont(screen))
+		      ? getItalicFont
+		      : getNormalFont);
 	}
     }
 #endif
@@ -12299,11 +12515,11 @@ ReallyReset(XtermWidget xw, Bool full, Bool saved)
     bitclr(&xw->flags, PROTECTED);
     screen->protected_mode = OFF_PROTECT;
 
-    reset_displayed_graphics(screen);
-
     if (full) {			/* RIS */
 	if (screen->bellOnReset)
 	    Bell(xw, XkbBI_TerminalBell, 0);
+
+	reset_displayed_graphics(screen);
 
 	/* reset the mouse mode */
 	screen->send_mouse_pos = MOUSE_OFF;

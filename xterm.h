@@ -1,4 +1,4 @@
-/* $XTermId: xterm.h,v 1.873 2020/08/10 09:04:29 tom Exp $ */
+/* $XTermId: xterm.h,v 1.876 2020/09/19 16:31:05 Ross.Combs Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -514,6 +514,7 @@ extern char **environ;
 #define XtNfont4		"font4"
 #define XtNfont5		"font5"
 #define XtNfont6		"font6"
+#define XtNfont7		"font7"
 #define XtNfontDoublesize	"fontDoublesize"
 #define XtNfontWarnings		"fontWarnings"
 #define XtNforceBoxChars	"forceBoxChars"
@@ -570,6 +571,7 @@ extern char **environ;
 #define XtNoldXtermFKeys	"oldXtermFKeys"
 #define XtNpointerColor		"pointerColor"
 #define XtNpointerColorBackground "pointerColorBackground"
+#define XtNpointerFont		"pointerFont"
 #define XtNpointerMode		"pointerMode"
 #define XtNpointerShape		"pointerShape"
 #define XtNpopOnBell		"popOnBell"
@@ -718,6 +720,7 @@ extern char **environ;
 #define XtCFont4		"Font4"
 #define XtCFont5		"Font5"
 #define XtCFont6		"Font6"
+#define XtCFont7		"Font7"
 #define XtCFontDoublesize	"FontDoublesize"
 #define XtCFontWarnings		"FontWarnings"
 #define XtCForceBoxChars	"ForceBoxChars"
@@ -767,6 +770,7 @@ extern char **environ;
 #define XtCNumColorRegisters	"NumColorRegisters"
 #define XtCNumLock		"NumLock"
 #define XtCOldXtermFKeys	"OldXtermFKeys"
+#define XtCPointerFont		"PointerFont"
 #define XtCPointerMode		"PointerMode"
 #define XtCPopOnBell		"PopOnBell"
 #define XtCPrecompose		"Precompose"
@@ -1056,6 +1060,10 @@ extern int set_cur_row(TScreen * /* screen */, int  /* value */);
 #define set_cur_col(screen, value) screen->cur_col = value
 #define set_cur_row(screen, value) screen->cur_row = value
 #endif
+
+/* cursorfont.c */
+extern Cursor CreateAlternateCursorFontCursor(Display * /* dpy */, char const * /* cursorfont */, unsigned int  /* which */);
+extern int CursorFontIndexFromShapeName(char const * /* shapename */);
 
 /* doublechr.c */
 extern void xterm_DECDHL (XtermWidget /* xw */, Bool  /* top */);
