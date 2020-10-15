@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1781 2020/09/19 16:44:40 Ross.Combs Exp $ */
+/* $XTermId: charproc.c,v 1.1791 2020/10/14 21:43:18 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -261,6 +261,8 @@ static XtActionsRec actionsList[] = {
     { "insert-seven-bit",	HandleKeyPressed },
     { "interpret",		HandleInterpret },
     { "keymap",			HandleKeymapChange },
+    { "pointer-motion",		HandlePointerMotion },
+    { "pointer-button",		HandlePointerButton },
     { "popup-menu",		HandlePopupMenu },
     { "print",			HandlePrintScreen },
     { "print-everything",	HandlePrintEverything },
@@ -918,6 +920,8 @@ xtermAddInput(Widget w)
 	{ "insert",		    HandleKeyPressed }, /* alias */
 	{ "insert-eight-bit",	    HandleEightBitKeyPressed },
 	{ "insert-seven-bit",	    HandleKeyPressed },
+	{ "pointer-motion",	    HandlePointerMotion },
+	{ "pointer-button",	    HandlePointerButton },
 	{ "secure",		    HandleSecure },
 	{ "string",		    HandleStringEvent },
 	{ "scroll-back",	    HandleScrollBack },
@@ -5633,9 +5637,7 @@ WrapLine(XtermWidget xw)
     if (ld != 0) {
 	/* mark that we had to wrap this line */
 	LineSetFlag(ld, LINEWRAPPED);
-	if (screen->show_wrap_marks) {
-	    ShowWrapMarks(xw, screen->cur_row, ld);
-	}
+	ShowWrapMarks(xw, screen->cur_row, ld);
 	xtermAutoPrint(xw, '\n');
 	xtermIndex(xw, 1);
 	set_cur_col(screen, ScrnLeftMargin(xw));
@@ -8321,8 +8323,12 @@ VTInit(XtermWidget xw)
     XtOverrideTranslations(vtparent, XtParseTranslationTable(xterm_trans));
     (void) XSetWMProtocols(XtDisplay(vtparent), XtWindow(vtparent),
 			   &wm_delete_window, 1);
-    TRACE_TRANS("shell", vtparent);
-    TRACE_TRANS("vt100", (Widget) (xw));
+
+    if (IsEmpty(xw->keyboard.print_translations)) {
+	TRACE_TRANS("shell", vtparent);
+	TRACE_TRANS("vt100", (Widget) (xw));
+	xtermButtonInit(xw);
+    }
 
     ScrnAllocBuf(xw);
 
@@ -10173,15 +10179,11 @@ releaseWindowGCs(XtermWidget xw, VTwin *win)
 #define TRACE_FREE_LEAK(name) \
 	if (name) { \
 	    TRACE(("freed " #name ": %p\n", (const void *) name)); \
-	    free((void *) name); \
-	    name = 0; \
+	    FreeAndNull(name); \
 	}
 
 #define FREE_LEAK(name) \
-	if (name) { \
-	    free((void *) name); \
-	    name = 0; \
-	}
+	FreeAndNull(name)
 
 #if OPT_INPUT_METHOD
 static void
@@ -10254,6 +10256,7 @@ VTDestroy(Widget w GCC_UNUSED)
 	}
     }
 #endif
+    FreeMarkGCs(xw);
     TRACE_FREE_LEAK(screen->unparse_bfr);
     TRACE_FREE_LEAK(screen->save_ptr);
     TRACE_FREE_LEAK(screen->saveBuf_data);
@@ -10430,6 +10433,8 @@ VTDestroy(Widget w GCC_UNUSED)
     TRACE_FREE_LEAK(xw->keyboard.extra_translations);
     TRACE_FREE_LEAK(xw->keyboard.shell_translations);
     TRACE_FREE_LEAK(xw->keyboard.xterm_translations);
+    TRACE_FREE_LEAK(xw->keyboard.print_translations);
+    UnmapSelections(xw);
 
     XtFree((void *) (xw->visInfo));
 
@@ -10795,6 +10800,38 @@ LookupCursorShape(const char *name)
     return result;
 }
 
+#if USE_DOUBLE_BUFFER
+static Boolean
+allocateDbe(XtermWidget xw, VTwin *target)
+{
+    TScreen *screen = TScreenOf(xw);
+    Boolean result = False;
+
+    target->drawable = target->window;
+
+    if (resource.buffered) {
+	Window win = target->window;
+	Drawable d;
+	int major, minor;
+	if (XdbeQueryExtension(XtDisplay(xw), &major, &minor)) {
+	    d = XdbeAllocateBackBufferName(XtDisplay(xw), win,
+					   (XdbeSwapAction) XdbeCopied);
+	    if (d == None) {
+		fprintf(stderr, "Couldn't allocate a back buffer!\n");
+		exit(3);
+	    }
+	    target->drawable = d;
+	    screen->needSwap = 1;
+	    TRACE(("initialized double-buffering\n"));
+	    result = True;
+	} else {
+	    resource.buffered = False;
+	}
+    }
+    return result;
+}
+#endif /* USE_DOUBLE_BUFFER */
+
 /*ARGSUSED*/
 static void
 VTRealize(Widget w,
@@ -11007,25 +11044,12 @@ VTRealize(Widget w,
 		      InputOutput, CopyFromParent,
 		      *valuemask | CWBitGravity, values);
 #if USE_DOUBLE_BUFFER
-    screen->fullVwin.drawable = screen->fullVwin.window;
-
-    if (resource.buffered) {
-	Window win = screen->fullVwin.window;
-	Drawable d;
-	int major, minor;
-	if (XdbeQueryExtension(XtDisplay(xw), &major, &minor)) {
-	    d = XdbeAllocateBackBufferName(XtDisplay(xw), win,
-					   (XdbeSwapAction) XdbeCopied);
-	    if (d == None) {
-		fprintf(stderr, "Couldn't allocate a back buffer!\n");
-		exit(3);
-	    }
-	    screen->fullVwin.drawable = d;
-	    screen->needSwap = 1;
-	    TRACE(("initialized double-buffering\n"));
-	} else {
-	    resource.buffered = False;
-	}
+    if (allocateDbe(xw, &(screen->fullVwin))) {
+	screen->needSwap = 1;
+	TRACE(("initialized full double-buffering\n"));
+    } else {
+	resource.buffered = False;
+	screen->fullVwin.drawable = screen->fullVwin.window;
     }
 #endif /* USE_DOUBLE_BUFFER */
     screen->event_mask = values->event_mask;
@@ -11103,8 +11127,14 @@ VTRealize(Widget w,
 			  *valuemask | CWBitGravity | CWBorderPixel,
 			  values);
 #if USE_DOUBLE_BUFFER
-	screen->iconVwin.drawable = screen->iconVwin.window;
-#endif
+	if (allocateDbe(xw, &(screen->iconVwin))) {
+	    TRACE(("initialized icon double-buffering\n"));
+	} else {
+	    resource.buffered = False;
+	    screen->iconVwin.drawable = screen->iconVwin.window;
+	    screen->fullVwin.drawable = screen->fullVwin.window;
+	}
+#endif /* USE_DOUBLE_BUFFER */
 	XtVaSetValues(shell,
 		      XtNiconWindow, screen->iconVwin.window,
 		      (XtPointer) 0);
@@ -12653,11 +12683,8 @@ VTReset(XtermWidget xw, Bool full, Bool saved)
 {
     ReallyReset(xw, full, saved);
 
-    free(myState.string_area);
-    myState.string_area = 0;
-
-    free(myState.print_area);
-    myState.print_area = 0;
+    FreeAndNull(myState.string_area);
+    FreeAndNull(myState.print_area);
 
     longjmp(vtjmpbuf, 1);	/* force ground state in parser */
 }
@@ -12901,7 +12928,7 @@ HandleIgnore(Widget w,
 	switch (event->type) {
 	case ButtonPress:
 	case ButtonRelease:
-	default:
+	case MotionNotify:
 	    (void) SendMousePosition(xw, event);
 	    break;
 	}
@@ -13086,6 +13113,7 @@ set_cursor_gcs(XtermWidget xw)
 	}
 	set_cursor_outline_gc(xw, screen->always_highlight, fg, bg, cc);
 	changed = True;
+	FreeMarkGCs(xw);
     }
 
     if (changed) {
@@ -13197,9 +13225,16 @@ VTInitTranslations(void)
                       <Btn5Down>:scroll-forw(5,line,m)     \n\
 "
 	),
+	DATA("pointer",
+"\
+                     <BtnMotion>:pointer-motion() \n\
+                       <BtnDown>:pointer-button() \n\
+                         <BtnUp>:pointer-button() \n\
+"
+	),
 	DATA("default",
 "\
-                       <BtnDown>:ignore() \n\
+                         <BtnUp>:ignore() \n\
 "
 	)
     };

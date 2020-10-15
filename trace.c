@@ -1,4 +1,4 @@
-/* $XTermId: trace.c,v 1.219 2020/06/02 00:55:23 tom Exp $ */
+/* $XTermId: trace.c,v 1.222 2020/10/12 18:49:54 tom Exp $ */
 
 /*
  * Copyright 1997-2019,2020 by Thomas E. Dickey
@@ -328,9 +328,8 @@ visibleChars(const Char *buf, unsigned len)
 		dst += strlen(dst);
 	    }
 	}
-    } else if (result != 0) {
-	free(result);
-	result = 0;
+    } else {
+	FreeAndNull(result);
 	used = 0;
     }
     return NonNull(result);
@@ -384,9 +383,8 @@ visibleIChars(const IChar *buf, unsigned len)
 		dst += strlen(dst);
 	    }
 	}
-    } else if (result != 0) {
-	free(result);
-	result = 0;
+    } else {
+	FreeAndNull(result);
 	used = 0;
     }
     return NonNull(result);
@@ -800,8 +798,9 @@ TraceEvent(const char *tag, XEvent *ev, String *params, Cardinal *num_params)
     case ButtonPress:
 	/* FALLTHRU */
     case ButtonRelease:
-	TRACE((" button %u %s",
+	TRACE((" button %u state %#x %s",
 	       ev->xbutton.button,
+	       ev->xbutton.state,
 	       formatEventMask(mask_buffer, ev->xbutton.state, True)));
 	break;
     case MotionNotify:
@@ -1118,17 +1117,6 @@ TraceWMSizeHints(XtermWidget xw)
     xw->hints = sizehints;
 }
 
-/*
- * Some calls to XGetAtom() will fail, and we don't want to stop.  So we use
- * our own error-handler.
- */
-/* ARGSUSED */
-static int
-no_error(Display *dpy GCC_UNUSED, XErrorEvent *event GCC_UNUSED)
-{
-    return 1;
-}
-
 const char *
 ModifierName(unsigned modifier)
 {
@@ -1156,7 +1144,7 @@ void
 TraceTranslations(const char *name, Widget w)
 {
     String result;
-    XErrorHandler save = XSetErrorHandler(no_error);
+    XErrorHandler save = XSetErrorHandler(ignore_x11_error);
     XtTranslations xlations;
     Widget xcelerat;
 

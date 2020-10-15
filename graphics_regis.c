@@ -1,4 +1,4 @@
-/* $XTermId: graphics_regis.c,v 1.124 2020/09/17 08:01:08 Ross.Combs Exp $ */
+/* $XTermId: graphics_regis.c,v 1.126 2020/10/14 19:04:43 tom Exp $ */
 
 /*
  * Copyright 2014-2019,2020 by Ross Combs
@@ -1617,7 +1617,7 @@ copy_bitmap_from_xft_font(XtermWidget xw, XftFont *font, FcChar32 ch,
     XftDrawString32(draw, &fg, font, -(int) xmin, font->ascent - (int) ymin,
 		    &ch, 1);
 
-    glyph_gc = XCreateGC(display, bitmap, 0, NULL);
+    glyph_gc = XCreateGC(display, bitmap, 0UL, NULL);
     if (!glyph_gc) {
 	TRACE(("unable to create GC\n"));
 	XftDrawDestroy(draw);
@@ -2266,7 +2266,8 @@ get_user_bitmap_of_character(RegisGraphicsContext const *context,
 	for (xx = 0U; xx < w; xx++) {
 	    byte = yy * GLYPH_WIDTH_BYTES(w) + (xx >> 3U);
 	    bit = xx & 7U;
-	    pixels[yy * w + xx] = ((unsigned) glyph[byte] >> (7U - bit)) & 1U;
+	    pixels[yy * w + xx] = (Char) (((unsigned) glyph[byte]
+					   >> (7U - bit)) & 1U);
 	}
     }
 

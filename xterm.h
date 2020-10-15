@@ -1,4 +1,4 @@
-/* $XTermId: xterm.h,v 1.876 2020/09/19 16:31:05 Ross.Combs Exp $ */
+/* $XTermId: xterm.h,v 1.880 2020/10/09 00:34:18 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -903,6 +903,8 @@ extern void HandleKeyboardSelectEnd    PROTO_XT_ACTIONS_ARGS;
 extern void HandleKeyboardSelectExtend PROTO_XT_ACTIONS_ARGS;
 extern void HandleKeyboardSelectStart  PROTO_XT_ACTIONS_ARGS;
 extern void HandleKeyboardStartExtend  PROTO_XT_ACTIONS_ARGS;
+extern void HandlePointerMotion        PROTO_XT_ACTIONS_ARGS;
+extern void HandlePointerButton        PROTO_XT_ACTIONS_ARGS;
 extern void HandleSelectEnd            PROTO_XT_ACTIONS_ARGS;
 extern void HandleSelectExtend         PROTO_XT_ACTIONS_ARGS;
 extern void HandleSelectSet            PROTO_XT_ACTIONS_ARGS;
@@ -913,7 +915,9 @@ extern void ScrollSelection (TScreen * /* screen */, int  /* amount */,  Bool /*
 extern void TrackMouse (XtermWidget /* xw */, int /* func */, CELL * /* start */, int /* firstrow */, int /* lastrow */);
 extern void ViButton                   PROTO_XT_ACTIONS_ARGS;
 
-extern int xtermUtf8ToTextList(XtermWidget /* xw */, XTextProperty * /* text_prop */, char *** /* text_list */, int * /* text_list_count */);
+extern void UnmapSelections (XtermWidget /* xw */);
+extern int xtermUtf8ToTextList (XtermWidget /* xw */, XTextProperty * /* text_prop */, char *** /* text_list */, int * /* text_list_count */);
+extern void xtermButtonInit (XtermWidget /* xw */);
 
 #if OPT_DEC_LOCATOR
 extern void GetLocatorPosition (XtermWidget  /* w */);
@@ -1160,6 +1164,7 @@ extern int XStrCmp (char * /* s1 */, char * /* s2 */);
 extern int creat_as (uid_t /* uid */, gid_t /* gid */, Bool /* append */, char * /* pathname */, unsigned /* mode */);
 extern int getVisualDepth (XtermWidget /* xw */);
 extern int getVisualInfo (XtermWidget /* xw */);
+extern int ignore_x11_error(Display * /* dpy */, XErrorEvent * /* event */);
 extern int open_userfile (uid_t /* uid */, gid_t /* gid */, char * /* path */, Bool /* append */);
 extern int xerror (Display * /* d */, XErrorEvent * /* ev */);
 extern int xioerror (Display * /* dpy */);
@@ -1399,6 +1404,7 @@ extern void ClearBufRows (XtermWidget /* xw */, int  /* first */, int  /* last *
 extern void ClearCells (XtermWidget /* xw */, int /* flags */, unsigned /* len */, int /* row */, int /* col */);
 extern void CopyCells (TScreen * /* screen */, LineData * /* src */, LineData * /* dst */, int /* col */, int /* len */, Bool /* down */);
 extern void FullScreen (XtermWidget /* xw */, int /* mode */);
+extern void FreeMarkGCs (XtermWidget /* xw */);
 extern void ScrnAllocBuf (XtermWidget /* xw */);
 extern void ScrnClearCells (XtermWidget /* xw */, int /* row */, int /* col */, unsigned /* len */);
 extern void ScrnDeleteChar (XtermWidget /* xw */, unsigned  /* n */);

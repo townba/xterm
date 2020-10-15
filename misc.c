@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.956 2020/09/19 16:28:48 Ross.Combs Exp $ */
+/* $XTermId: misc.c,v 1.960 2020/10/14 19:07:13 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -829,8 +829,8 @@ make_colored_cursor(unsigned c_index,		/* index into font */
 	    if (!xtermMissingChar(c_index, &myFont)
 		&& !xtermMissingChar(c_index + 1, &myFont)) {
 #define DATA(c) { 0UL, c, c, c, 0, 0 }
-		static XColor const foreground = DATA(0);
-		static XColor const background = DATA(65535);
+		static XColor foreground = DATA(0);
+		static XColor background = DATA(65535);
 #undef DATA
 
 		/*
@@ -1018,8 +1018,7 @@ HandleSpawnTerminal(Widget w GCC_UNUSED,
     }
 
     /* We are the parent; clean up */
-    if (child_cwd)
-	free(child_cwd);
+    free(child_cwd);
     free(child_exe);
 }
 #endif /* OPT_EXEC_XTERM */
@@ -1372,7 +1371,7 @@ void
 xtermPerror(const char *fmt, ...)
 {
     int save_err = errno;
-    char *msg = strerror(errno);
+    const char *msg = strerror(errno);
     va_list ap;
 
     fflush(stdout);
@@ -1508,13 +1507,11 @@ dabbrev_expand(XtermWidget xw)
 	cell.col = screen->cur_col;
 	cell.row = screen->cur_row;
 
-	if (dabbrev_hint != 0)
-	    free(dabbrev_hint);
+	free(dabbrev_hint);
 
 	if ((dabbrev_hint = dabbrev_prev_word(xw, &cell, &ld)) != 0) {
 
-	    if (lastexpansion != 0)
-		free(lastexpansion);
+	    free(lastexpansion);
 
 	    if ((lastexpansion = strdup(dabbrev_hint)) != 0) {
 
@@ -1530,10 +1527,8 @@ dabbrev_expand(XtermWidget xw)
 	    return result;
 	}
 	if (!screen->dabbrev_working) {
-	    if (lastexpansion != 0) {
-		free(lastexpansion);
-		lastexpansion = 0;
-	    }
+	    free(lastexpansion);
+	    lastexpansion = 0;
 	    return result;
 	}
     }
@@ -4171,8 +4166,7 @@ do_osc(XtermWidget xw, Char *oscbuf, size_t len, int final)
 	if (strcmp(buf, "?")) {
 	    char *bp;
 	    if ((bp = x_strdup(buf)) != NULL) {
-		if (screen->logfile)
-		    free(screen->logfile);
+		free(screen->logfile);
 		screen->logfile = bp;
 		break;
 	    }
@@ -4242,11 +4236,8 @@ reset_decudk(XtermWidget xw)
 {
     int n;
     for (n = 0; n < MAX_UDK; n++) {
-	if (xw->work.user_keys[n].str != 0) {
-	    free(xw->work.user_keys[n].str);
-	    xw->work.user_keys[n].str = 0;
-	    xw->work.user_keys[n].len = 0;
-	}
+	FreeAndNull(xw->work.user_keys[n].str);
+	xw->work.user_keys[n].len = 0;
     }
 }
 
@@ -4279,8 +4270,7 @@ parse_decudk(XtermWidget xw, const char *cp)
 	}
 	if (len > 0 && key < MAX_UDK) {
 	    str[len] = '\0';
-	    if (xw->work.user_keys[key].str != 0)
-		free(xw->work.user_keys[key].str);
+	    free(xw->work.user_keys[key].str);
 	    xw->work.user_keys[key].str = str;
 	    xw->work.user_keys[key].len = len;
 	    TRACE(("parse_decudk %d:%.*s\n", key, len, str));
@@ -5393,10 +5383,7 @@ x_find_icon(char **work, int *state, const char *filename, const char *suffix)
     if (*state >= 0) {
 	size_t length;
 
-	if (*work) {
-	    free(*work);
-	    *work = 0;
-	}
+	FreeAndNull(*work);
 	length = 3 + strlen(prefix) + strlen(filename) + strlen(larger) +
 	    strlen(suffix);
 	if ((result = malloc(length)) != 0) {
@@ -5571,8 +5558,7 @@ xtermLoadIcon(XtermWidget xw, const char *icon_hint)
 	}
     }
 
-    if (workname != 0)
-	free(workname);
+    free(workname);
 
 #else
     (void) xw;
@@ -5894,6 +5880,7 @@ ReverseOldColors(XtermWidget xw)
 	EXCHANGE(pOld->colors[TEK_FG], pOld->colors[TEK_BG], tmpPix);
 	EXCHANGE(pOld->names[TEK_FG], pOld->names[TEK_BG], tmpName);
 #endif
+	FreeMarkGCs(xw);
     }
     return;
 }
@@ -5951,7 +5938,7 @@ const char *
 SysErrorMsg(int code)
 {
     static const char unknown[] = "unknown error";
-    char *s = strerror(code);
+    const char *s = strerror(code);
     return s ? s : unknown;
 }
 
@@ -6601,10 +6588,7 @@ sortedOptDescs(XrmOptionDescRec * descs, Cardinal res_count)
 
 #ifdef NO_LEAKS
     if (descs == 0) {
-	if (res_array != 0) {
-	    free(res_array);
-	    res_array = 0;
-	}
+	FreeAndNull(res_array);
     } else
 #endif
     if (res_array == 0) {
@@ -6635,8 +6619,7 @@ sortedOpts(OptionHelp * options, XrmOptionDescRec * descs, Cardinal numDescs)
 #ifdef NO_LEAKS
     if (descs == 0 && opt_array != 0) {
 	sortedOptDescs(descs, numDescs);
-	free(opt_array);
-	opt_array = 0;
+	FreeAndNull(opt_array);
 	return 0;
     } else if (options == 0 || descs == 0) {
 	return 0;
@@ -6917,6 +6900,17 @@ xtermOpenApplication(XtAppContext * app_context_return,
     XtSetErrorHandler(NULL);
 
     return result;
+}
+
+/*
+ * Some calls to XGetAtom() will fail, and we don't want to stop.  So we use
+ * our own error-handler.
+ */
+/* ARGSUSED */
+int
+ignore_x11_error(Display *dpy GCC_UNUSED, XErrorEvent *event GCC_UNUSED)
+{
+    return 1;
 }
 
 static int x11_errors;
@@ -7296,7 +7290,7 @@ allocColorSlot(XtermWidget xw, int slot)
     if (slot >= 0 && slot < MAX_SAVED_SGR) {
 	ColorSlot *palette;
 	if ((palette = s->palettes[slot]) == 0) {
-	    s->palettes[slot] = (ColorSlot *) calloc(1,
+	    s->palettes[slot] = (ColorSlot *) calloc((size_t)1,
 						     sizeof(ColorSlot)
 						     + (sizeof(ColorRes)
 							* MAXCOLORS));

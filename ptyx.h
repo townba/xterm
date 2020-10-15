@@ -1,4 +1,4 @@
-/* $XTermId: ptyx.h,v 1.1012 2020/09/19 16:58:15 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.1016 2020/10/12 19:27:06 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -130,11 +130,16 @@
 	BumpBuffer(type, BfBuf(type), BfLen(type), want)
 
 #define FreeTypedBuffer(type) \
-	if (BfBuf(type) != 0) { \
-	    free(BfBuf(type)); \
-	    BfBuf(type) = 0; \
-	} \
-	BfLen(type) = 0
+	do { \
+	    FreeAndNull(BfBuf(type)); \
+	    BfLen(type) = 0; \
+	} while (0)
+
+#define FreeAndNull(value) \
+	do { \
+	    free((void *)(value)); \
+	    value = NULL; \
+	} while (0)
 
 /*
 ** System V definitions
@@ -2141,6 +2146,7 @@ typedef struct {
 	SbInfo		sb_info;
 	GC		filler_gc;	/* filler's fg/bg		*/
 	GC		border_gc;	/* inner border's fg/bg		*/
+	GC		marker_gc[2];	/* wrap-marks			*/
 #if USE_DOUBLE_BUFFER
 	Drawable	drawable;	/* X drawable id                */
 #endif
@@ -3018,9 +3024,11 @@ typedef struct
 {
     xtermKeyboardType type;
     IFlags flags;
-    char *shell_translations;
-    char *xterm_translations;
+    char *shell_translations;	/* shell's translations, for input check */
+    char *xterm_translations;	/* xterm's translations, for input check */
     char *extra_translations;
+    char *print_translations;	/* printable translations for buttons */
+    unsigned shift_buttons;	/* special shift-modifier for mouse-buttons */
 #if OPT_INITIAL_ERASE
     int	reset_DECBKM;		/* reset should set DECBKM */
 #endif
