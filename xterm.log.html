@@ -30,7 +30,7 @@
  * sale, use or other dealings in this Software without prior written        *
  * authorization.                                                            *
  *****************************************************************************
-  $XTermId: xterm.log.html,v 1.2261 2020/10/15 00:54:48 tom Exp $
+  $XTermId: xterm.log.html,v 1.2270 2020/11/12 00:44:37 tom Exp $
   -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 
@@ -73,6 +73,8 @@
   CHANGELOG</a>).</p>
 
   <ul>
+    <li><a href="#xterm_362">Patch #362 - 2020/11/11</a></li>
+
     <li><a href="#xterm_361">Patch #361 - 2020/10/14</a></li>
 
     <li><a href="#xterm_360">Patch #360 - 2020/09/20</a></li>
@@ -1001,6 +1003,52 @@
     <li><a href="#xterm_02">Patch #2 - 1996/1/7</a></li>
 
     <li><a href="#xterm_01">Patch #1 - 1996/1/6</a></li>
+  </ul>
+
+  <h1><a name="xterm_362" id="xterm_362">Patch #362 -
+  2020/11/11</a></h1>
+
+  <ul>
+    <li>cleanup of calls to <code>free</code>, removing checks for
+    null (Walter Harms).</li>
+
+    <li>improved mouse-button reporting (prompted by discussion
+    with Stephane Chazelas)
+
+      <ul>
+        <li>narrow the scope of the change for shift-key in
+        <a href="#xterm_361">patch #361</a> to make it apply only
+        when the <code>modifyOtherKeys</code> resource is set to 2
+        (i.e., &ldquo;program mode&rdquo;). Also, when checking the
+        shift-key, ignore modifiers other than shift, control and
+        &ldquo;meta&rdquo;</li>
+
+        <li>use the alt/meta modifier information obtained in
+        <code>VTInitModifiers</code> to replace a hard-coded
+        <em>mod1</em> used to detect &ldquo;Meta&rdquo; for
+        mouse-button responses.</li>
+      </ul>
+    </li>
+
+    <li>reduce <code>SIGWINCH</code>'s sent to the client by
+    filtering out duplicates.</li>
+
+    <li>improve display when <code>scaleHeight</code> is greater
+    than 1:
+
+      <ul>
+        <li>the text-cursor is vertically-centered on the current
+        line, rather than only extending below the current line
+        (report by Manu Chaturvedi).</li>
+
+        <li>the built-in line-drawing characters extend to the
+        scaled cell-height.</li>
+      </ul>
+    </li>
+
+    <li>fill-in special case for motion-events to match the changes
+    for shift-key in pointer-button events from <a href=
+    "#xterm_361">patch #361</a>.</li>
   </ul>
 
   <h1><a name="xterm_361" id="xterm_361">Patch #361 -

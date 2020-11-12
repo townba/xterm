@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.960 2020/10/14 19:07:13 tom Exp $ */
+/* $XTermId: misc.c,v 1.962 2020/11/08 20:06:38 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -7016,23 +7016,31 @@ free_string(String value)
 }
 
 /* Set tty's idea of window size, using the given file descriptor 'fd'. */
-void
+int
 update_winsize(int fd, int rows, int cols, int height, int width)
 {
+    int code = -1;
 #ifdef TTYSIZE_STRUCT
-    TTYSIZE_STRUCT ts;
-    int code;
+    static int last_rows = -1;
+    static int last_cols = -1;
 
-    setup_winsize(ts, rows, cols, height, width);
-    TRACE_RC(code, SET_TTYSIZE(fd, ts));
-    trace_winsize(ts, "from SET_TTYSIZE");
-    (void) code;
+    if (rows != last_rows || cols != last_cols) {
+	TTYSIZE_STRUCT ts;
+
+	last_rows = rows;
+	last_cols = cols;
+	setup_winsize(ts, rows, cols, height, width);
+	TRACE_RC(code, SET_TTYSIZE(fd, ts));
+	trace_winsize(ts, "from SET_TTYSIZE");
+    }
 #endif
 
     (void) rows;
     (void) cols;
     (void) height;
     (void) width;
+
+    return code;
 }
 
 /*
@@ -7288,9 +7296,8 @@ allocColorSlot(XtermWidget xw, int slot)
     ColorSlot *result = NULL;
 
     if (slot >= 0 && slot < MAX_SAVED_SGR) {
-	ColorSlot *palette;
-	if ((palette = s->palettes[slot]) == 0) {
-	    s->palettes[slot] = (ColorSlot *) calloc((size_t)1,
+	if (s->palettes[slot] == NULL) {
+	    s->palettes[slot] = (ColorSlot *) calloc((size_t) 1,
 						     sizeof(ColorSlot)
 						     + (sizeof(ColorRes)
 							* MAXCOLORS));
