@@ -1,4 +1,4 @@
-/* $XTermId: trace.c,v 1.224 2020/10/18 21:50:12 tom Exp $ */
+/* $XTermId: trace.c,v 1.230 2020/12/25 15:15:37 tom Exp $ */
 
 /*
  * Copyright 1997-2019,2020 by Thomas E. Dickey
@@ -89,37 +89,30 @@ TraceOpen(void)
     trace_out = trace_who;
 
     if (!trace_fp) {
+	static char dot[] = ".";
 	mode_t oldmask = umask(077);
-	char name[BUFSIZ];
-#if 0				/* usually I do not want unique names */
+	/*
+	 * Put the trace-file in user's home-directory if the current
+	 * directory is not writable.
+	 */
+	char *home = (access(dot, R_OK | W_OK) == 0) ? dot : getenv("HOME");
+	char *name = malloc(strlen(home) + strlen(trace_who) + 50);
+#if OPT_TRACE_UNIQUE		/* usually I do not want unique names */
 	int unique;
 	for (unique = 0;; ++unique) {
 	    if (unique)
-		sprintf(name, "Trace-%s.out-%d", trace_who, unique);
+		sprintf(name, "%s/Trace-%s.out-%d", home, trace_who, unique);
 	    else
-		sprintf(name, "Trace-%s.out", trace_who);
+		sprintf(name, "%s/Trace-%s.out", home, trace_who);
 	    if ((trace_fp = fopen(name, "r")) == 0) {
 		break;
 	    }
 	    fclose(trace_fp);
 	}
 #else
-	sprintf(name, "Trace-%s.out", trace_who);
+	sprintf(name, "%s/Trace-%s.out", home, trace_who);
 #endif
 	trace_fp = fopen(name, "w");
-	/*
-	 * Try to put the trace-file in user's home-directory if the current
-	 * directory is not writable.
-	 */
-	if (trace_fp == 0) {
-	    char *home = getenv("HOME");
-	    if (home != 0) {
-		sprintf(name, "%.*s/Trace-%.8s.out",
-			(BUFSIZ - 21), home,
-			trace_who);
-		trace_fp = fopen(name, "w");
-	    }
-	}
 	if (trace_fp != 0) {
 	    fprintf(trace_fp, "%s\n", xtermVersion());
 	    TraceIds(NULL, 0);
@@ -129,6 +122,7 @@ TraceOpen(void)
 	    exit(EXIT_FAILURE);
 	}
 	(void) umask(oldmask);
+	free(name);
     }
     return trace_fp;
 }
@@ -264,7 +258,7 @@ visibleScsCode(DECNRCM_codes chrset)
 	MAP("B", nrc_ASCII);
 	MAP("A", nrc_British);
 	MAP("A", nrc_British_Latin_1);
-	MAP("&4", nrc_Cyrillic);
+	MAP("&4", nrc_DEC_Cyrillic);
 	MAP("0", nrc_DEC_Spec_Graphic);
 	MAP("1", nrc_DEC_Alt_Chars);
 	MAP("2", nrc_DEC_Alt_Graphics);
@@ -286,6 +280,8 @@ visibleScsCode(DECNRCM_codes chrset)
 	MAP("%=", nrc_Hebrew);
 	MAP("H", nrc_ISO_Hebrew_Supp);
 	MAP("Y", nrc_Italian);
+	MAP("A", nrc_ISO_Latin_1_Supp);
+	MAP("B", nrc_ISO_Latin_2_Supp);
 	MAP("M", nrc_ISO_Latin_5_Supp);
 	MAP("L", nrc_ISO_Latin_Cyrillic);
 	MAP("`", nrc_Norwegian_Danish);
@@ -915,6 +911,11 @@ TraceEvent(const char *tag, XEvent *ev, String *params, Cardinal *num_params)
 	       (void *) ev->xnoexpose.display,
 	       ev->xnoexpose.major_code,
 	       ev->xnoexpose.minor_code));
+	break;
+    case SelectionClear:
+	TRACE((" selection:%s",
+	       TraceAtomName(ev->xselectionclear.display,
+			     ev->xselectionclear.selection)));
 	break;
     case SelectionRequest:
 	TRACE((" owner:%#lx requestor:%#lx",

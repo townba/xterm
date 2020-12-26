@@ -1,6 +1,6 @@
 .\"#! troff -ms $1		-*- Nroff -*-
 .\" "Xterm Control Sequences" document
-.\" $XTermId: ctlseqs.ms,v 1.602 2020/11/07 00:12:50 tom Exp $
+.\" $XTermId: ctlseqs.ms,v 1.609 2020/12/25 14:17:03 tom Exp $
 .\"
 .\"
 .\" Copyright 1996-2019,2020 by Thomas E. Dickey
@@ -69,8 +69,8 @@
 .\"
 .ds XT XTerm
 .ds xt xterm
-.ds LF Patch #362
-.ds RF 2020/11/06
+.ds LF Patch #363
+.ds RF 2020/12/25
 .\"
 .if n .pl 9999v		\" no page breaks in nroff
 .ND
@@ -719,7 +719,7 @@ There are a few other 94-character sets:
   \*(Cc = \*< \(-> DEC Supplemental, VT200.
   \*(Cc = \*> \(-> DEC Technical, VT300.
 .br
-These are documented as NRCS:
+These are documented as 94-character sets (like USASCII) without NRCS:
   \*(Cc = \*(Dq\*4 \(-> DEC Hebrew, VT500.
   \*(Cc = \*(Dq\*? \(-> DEC Greek, VT500.
   \*(Cc = \*%\*0 \(-> DEC Turkish, VT500.
@@ -757,6 +757,7 @@ Unlike the 94-character sets, these can have different values than
 ASCII space and DEL for the mapping of 0x20 and 0x7f.
 The valid final characters \*(Cc for this control are:
   \*(Cc = \*A \(-> ISO Latin-1 Supplemental, VT300.
+  \*(Cc = \*(cB \(-> ISO Latin-2 Supplemental, VT500.
   \*(Cc = \*F \(-> ISO Greek Supplemental, VT500.
   \*(Cc = \*H \(-> ISO Hebrew Supplemental, VT500.
   \*(Cc = \*L \(-> ISO Latin-Cyrillic, VT500.
@@ -858,8 +859,8 @@ The second parameter:
   \*(Ps = \*0 \(<- Lock the keys (default).
   \*(Ps = \*1 \(<- Do not lock.
 .iP
-The third parameter is a ';'-separated list of strings denoting
-the key-code separated by a '/' from the hex-encoded key value.
+The third parameter is a \*(``;\*(''-separated list of strings denoting
+the key-code separated by a \*(``/\*('' from the hex-encoded key value.
 The key codes correspond to the DEC function-key codes (e.g., F6=17).
 .
 .iP
@@ -1961,6 +1962,22 @@ Save cursor, available only when DECLRMM is disabled (SCOSC, also ANSI.SYS).
 .IP \\*(Cs\\*(Pl\\*s\\*;\\*(Pr\\*s\\*(cs
 Set left and right margins (DECSLRM), VT420 and up.
 This is available only when DECLRMM is enabled.
+.
+.iP
+.IP \\*(Cs\\*>\\*(Ps\\*s\\*(cs
+Set/reset shift-escape options (XTSHIFTESCAPE), \fI\*(xt\fP.
+This corresponds to the \fBshiftEscape\fP resource.
+.iP
+Valid values for the parameter:
+  \*(Ps = \*0 \(-> allow shift-key to override mouse protocol.
+  \*(Ps = \*1 \(-> conditionally allow shift-key as modifier in mouse protocol.
+.iP
+These resource values are disallowed in the control sequence:
+  \*(Ps = \*2 \(-> always allow shift-key as modifier in mouse protocol.
+  \*(Ps = \*3 \(-> never allow shift-key as modifier in mouse protocol.
+.iP
+If no parameter is given, \fI\*(xt\fP uses the default,
+which is \*0.
 .
 .iP
 .IP \\*(Cs\\*?\\*(Pm\\*s\\*(cs
@@ -4056,13 +4073,11 @@ The latter was introduced in X10.4:
 .RS
 .ft C
 .na
-.hy 0
 Most Dec Private mode settings can be saved away internally using \\E[?ns,
 where n is the same number to set or reset the Dec Private mode.  The
 mode can be restored using \\E[?nr.  This can be used in termcap for vi, for
 example, to turn off saving of lines, but restore whatever the original
 state was on exit.
-.hy
 .ad
 .ft R
 .RE
@@ -4077,7 +4092,6 @@ That is implied by the description's mention of \fIHFT\fP:
 .iP
 .RS
 .na
-.hy 0
 .ft C
 The aixterm command provides a standard terminal type for programs that
 do not interact directly with Enhanced X-Windows.
@@ -4087,7 +4101,6 @@ The VT102 mode is activated by the -v flag.
 .ft R
 .ad
 .RE
-.hy
 .IP
 Unlike \fI\*(xt\fP, there are no resource names for the 16 colors,
 leaving the reader to assume that the mapping is hard-coded.

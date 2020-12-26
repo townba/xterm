@@ -1,4 +1,4 @@
-/* $XTermId: ptyx.h,v 1.1017 2020/10/28 07:51:06 tom Exp $ */
+/* $XTermId: ptyx.h,v 1.1026 2020/12/25 15:15:37 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -808,6 +808,10 @@ typedef enum {
 #define OPT_TRACE_FLAGS 0 /* additional tracing used for SCRN_BUF_FLAGS */
 #endif
 
+#ifndef OPT_TRACE_UNIQUE
+#define OPT_TRACE_UNIQUE 0 /* true if we're using multiple trace files */
+#endif
+
 #ifndef OPT_VT52_MODE
 #define OPT_VT52_MODE   1 /* true if xterm supports VT52 emulation */
 #endif
@@ -1022,7 +1026,7 @@ typedef enum {
     nrc_ASCII = 0
     ,nrc_British		/* vt100 */
     ,nrc_British_Latin_1	/* vt3xx */
-    ,nrc_Cyrillic		/* vt5xx */
+    ,nrc_DEC_Cyrillic		/* vt5xx */
     ,nrc_DEC_Spec_Graphic	/* vt100 */
     ,nrc_DEC_Alt_Chars		/* vt100 */
     ,nrc_DEC_Alt_Graphics	/* vt100 */
@@ -1044,6 +1048,8 @@ typedef enum {
     ,nrc_Hebrew			/* vt5xx */
     ,nrc_ISO_Hebrew_Supp	/* vt5xx */
     ,nrc_Italian		/* vt2xx */
+    ,nrc_ISO_Latin_1_Supp	/* vt5xx */
+    ,nrc_ISO_Latin_2_Supp	/* vt5xx */
     ,nrc_ISO_Latin_5_Supp	/* vt5xx */
     ,nrc_ISO_Latin_Cyrillic	/* vt5xx */
     ,nrc_Norwegian_Danish	/* vt3xx */
@@ -1258,16 +1264,53 @@ typedef enum {
 } MouseOps;
 
 typedef enum {
-    epC0 = 1
-    , epBS
-    , epCR
-    , epDEL
-    , epESC
-    , epFF
-    , epHT
-    , epNL
+#define DATA(name) ep##name
+    DATA(NUL) = 0
+    , DATA(SOH) =  1
+    , DATA(STX) =  2
+    , DATA(ETX) =  3
+    , DATA(EOT) =  4
+    , DATA(ENQ) =  5
+    , DATA(ACK) =  6
+    , DATA(BEL) =  7
+    , DATA(BS)  =  8
+    , DATA(HT)  =  9
+    , DATA(LF)  = 10
+    , DATA(VT)  = 11
+    , DATA(FF)  = 12
+    , DATA(CR)  = 13
+    , DATA(SO)  = 14
+    , DATA(SI)  = 15
+    , DATA(DLE) = 16
+    , DATA(DC1) = 17
+    , DATA(DC2) = 18
+    , DATA(DC3) = 19
+    , DATA(DC4) = 20
+    , DATA(NAK) = 21
+    , DATA(SYN) = 22
+    , DATA(ETB) = 23
+    , DATA(CAN) = 24
+    , DATA(EM)  = 25
+    , DATA(SUB) = 26
+    , DATA(ESC) = 27
+    , DATA(FS)  = 28
+    , DATA(GS)  = 29
+    , DATA(RS)  = 30
+    , DATA(US)  = 31
+    /* aliases */
+    , DATA(C0)
+    , DATA(DEL)
+#undef DATA
     , epLAST
 } PasteControls;
+
+typedef enum {			/* legal values for keyboard.shift_escape */
+    ssFalse = 0
+    , ssTrue = 1
+    , ssAlways = 2
+    , ssNever = 3
+    , ssLAST
+} ShiftEscapeOps;
 
 /*
  * xterm uses these codes for the its push-SGR feature.  They match where
@@ -3029,6 +3072,8 @@ typedef struct
     char *extra_translations;
     char *print_translations;	/* printable translations for buttons */
     unsigned shift_buttons;	/* special shift-modifier for mouse-buttons */
+    int shift_escape;		/* working value of shiftEscape */
+    char * shift_escape_s;	/* resource for shiftEscape */
 #if OPT_INITIAL_ERASE
     int	reset_DECBKM;		/* reset should set DECBKM */
 #endif

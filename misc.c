@@ -1,4 +1,4 @@
-/* $XTermId: misc.c,v 1.962 2020/11/08 20:06:38 tom Exp $ */
+/* $XTermId: misc.c,v 1.965 2020/12/23 00:21:44 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -203,10 +203,10 @@ selectwindow(XtermWidget xw, int flag)
 #endif
 
 	if (screen->cursor_state && CursorMoved(screen))
-	    HideCursor();
+	    HideCursor(xw);
 	screen->select |= flag;
 	if (screen->cursor_state)
-	    ShowCursor();
+	    ShowCursor(xw);
     }
     GetScrollLock(screen);
 }
@@ -242,9 +242,9 @@ unselectwindow(XtermWidget xw, int flag)
 
 	    screen->select &= ~flag;
 	    if (screen->cursor_state && CursorMoved(screen))
-		HideCursor();
+		HideCursor(xw);
 	    if (screen->cursor_state)
-		ShowCursor();
+		ShowCursor(xw);
 	}
     }
 }
@@ -2541,11 +2541,17 @@ loadColorTable(XtermWidget xw, unsigned length)
 
 	if (screen->cmap_data != 0) {
 	    unsigned i;
+	    unsigned shift;
+
+	    if (getVisualInfo(xw))
+		shift = xw->rgb_shifts[2];
+	    else
+		shift = 0;
 
 	    screen->cmap_size = length;
 
 	    for (i = 0; i < screen->cmap_size; i++) {
-		screen->cmap_data[i].pixel = (unsigned long) i;
+		screen->cmap_data[i].pixel = (unsigned long) i << shift;
 	    }
 	    result = (Boolean) (XQueryColors(screen->display,
 					     cmap,
@@ -4547,9 +4553,9 @@ restore_DECCIR(XtermWidget xw, const char *cp)
     /* SCS designators */
     for (value = 0; value < NUM_GSETS; ++value) {
 	if (*cp == '%') {
-	    xtermDecodeSCS(xw, value, '%', *++cp);
+	    xtermDecodeSCS(xw, value, 0, '%', *++cp);
 	} else if (*cp != '\0') {
-	    xtermDecodeSCS(xw, value, '\0', *cp);
+	    xtermDecodeSCS(xw, value, 0, '\0', *cp);
 	} else {
 	    return;
 	}

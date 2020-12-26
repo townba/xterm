@@ -1,4 +1,4 @@
-/* $XTermId: util.c,v 1.868 2020/10/29 21:45:46 tom Exp $ */
+/* $XTermId: util.c,v 1.871 2020/12/21 22:01:11 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -189,7 +189,7 @@ FlushScroll(XtermWidget xw)
     Boolean full_lines = (Boolean) ((left == 0) && (right == screen->max_col));
 
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
 
     TRACE(("FlushScroll %s-lines scroll:%d refresh %d\n",
 	   full_lines ? "full" : "partial",
@@ -617,7 +617,7 @@ xtermScroll(XtermWidget xw, int amount)
     screen->cursor_moved = True;
 
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
 
     i = screen->bot_marg - screen->top_marg + 1;
     if (amount > i)
@@ -882,7 +882,7 @@ RevScroll(XtermWidget xw, int amount)
     screen->cursor_moved = True;
 
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
 
     if (amount > i)
 	amount = i;
@@ -1144,7 +1144,7 @@ WriteText(XtermWidget xw, IChar *str, Cardinal len)
 	unsigned test;
 
 	if (screen->cursor_state)
-	    HideCursor();
+	    HideCursor(xw);
 
 	/*
 	 * If we overwrite part of a multi-column character, fill the rest
@@ -1230,7 +1230,7 @@ InsertLine(XtermWidget xw, int n)
 
     set_cur_col(screen, ScrnLeftMargin(xw));
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
 
     if (ScrnHaveSelection(screen)
 	&& ScrnAreRowsInSelection(screen,
@@ -1323,7 +1323,7 @@ DeleteLine(XtermWidget xw, int n)
 
     set_cur_col(screen, ScrnLeftMargin(xw));
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
 
     if (n > (i = screen->bot_marg - screen->cur_row + 1)) {
 	n = i;
@@ -1439,7 +1439,7 @@ InsertChar(XtermWidget xw, unsigned n)
     int right = ScrnRightMargin(xw);
 
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
 
     TRACE(("InsertChar count=%d\n", n));
 
@@ -1521,7 +1521,7 @@ DeleteChar(XtermWidget xw, unsigned n)
     int right = ScrnRightMargin(xw);
 
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
 
     if (!ScrnIsColInMargins(screen, screen->cur_col))
 	return;
@@ -1597,7 +1597,7 @@ ClearAbove(XtermWidget xw)
 	int top;
 
 	if (screen->cursor_state)
-	    HideCursor();
+	    HideCursor(xw);
 	if ((top = INX2ROW(screen, 0)) <= screen->max_row) {
 	    int height;
 
@@ -1736,7 +1736,7 @@ ClearInLine2(XtermWidget xw, int flags, int row, int col, unsigned len)
     /* fall through to the final non-protected segment */
 
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
     ResetWrap(screen);
 
     if (AddToVisible(xw)
@@ -1873,7 +1873,7 @@ ClearScreen(XtermWidget xw)
     TRACE(("ClearScreen\n"));
 
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
 
     ScrnDisownSelection(xw);
     ResetWrap(screen);
@@ -2076,16 +2076,40 @@ CopyWait(XtermWidget xw)
     TScreen *screen = TScreenOf(xw);
     XEvent reply;
     XEvent *rep = &reply;
+#ifndef NO_ACTIVE_ICON
+    int retries = 0;
+#endif
 
 #if USE_DOUBLE_BUFFER
     if (resource.buffered)
 	return;
 #endif
 
-    while (XCheckWindowEvent(screen->display,
-			     VWindow(screen),
-			     ExposureMask,
-			     &reply)) {
+    for (;;) {
+#ifndef NO_ACTIVE_ICON
+	if (xw->work.active_icon != eiFalse) {
+	    /*
+	     * The XWindowEvent call blocks until an event is available.  That
+	     * can hang when using active-icon and iconifying/deiconifying
+	     * while the terminal is receiving lots of output.  Checking with
+	     * this call on the other hand may lose exposure events which
+	     * arrive too late.  As a compromise, try several times with a
+	     * time-delay before assuming no more events are available.
+	     */
+	    if (XCheckWindowEvent(screen->display,
+				  VWindow(screen),
+				  ExposureMask,
+				  &reply)) {
+		retries = 0;
+	    } else {
+		if (++retries >= 10)
+		    return;
+		usleep(10000U);	/* wait 10msec */
+		continue;
+	    }
+	} else
+#endif
+	    XWindowEvent(screen->display, VWindow(screen), ExposureMask, &reply);
 	switch (reply.type) {
 	case Expose:
 	    HandleExposure(xw, &reply);

@@ -1,4 +1,4 @@
-/* $XTermId: charproc.c,v 1.1796 2020/11/11 22:26:06 Walter.Harms Exp $ */
+/* $XTermId: charproc.c,v 1.1820 2020/12/25 22:12:54 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -697,6 +697,8 @@ static XtResource xterm_resources[] =
     CLICK_RES("3", screen.onClick[2], "line"),
     CLICK_RES("4", screen.onClick[3], 0),
     CLICK_RES("5", screen.onClick[4], 0),
+
+    Sres(XtNshiftEscape, XtCShiftEscape, keyboard.shift_escape_s, "false"),
 
 #if OPT_MOD_FKEYS
     Ires(XtNmodifyKeyboard, XtCModifyKeyboard,
@@ -1746,7 +1748,10 @@ init_groundtable(TScreen *screen, struct ParseState *sp)
 static void
 select_charset(struct ParseState *sp, int type, int size)
 {
-    TRACE(("select_charset %d %d\n", type, size));
+    TRACE(("select_charset G%d size %d -> G%d size %d\n",
+	   sp->scstype, sp->scssize,
+	   type, size));
+
     sp->scstype = type;
     sp->scssize = size;
     if (size == 94) {
@@ -1756,7 +1761,7 @@ select_charset(struct ParseState *sp, int type, int size)
     }
 }
 /* *INDENT-OFF* */
-static struct {
+static const struct {
     DECNRCM_codes result;
     int prefix;
     int suffix;
@@ -1792,16 +1797,18 @@ static struct {
     { nrc_French_Canadian2,  0,   '9', 3, 9, 1 },
     { nrc_Norwegian_Danish,  0,   '`', 3, 9, 1 },
     { nrc_Portugese,         '%', '6', 3, 9, 1 },
+    { nrc_ISO_Latin_1_Supp,  0,   'A', 3, 9, 0 },
     /* VT5xx */
-    { nrc_Cyrillic,          '&', '4', 5, 9, 1 },
     { nrc_Greek,             '"', '>', 5, 9, 1 },
     { nrc_Hebrew,            '%', '=', 5, 9, 1 },
     { nrc_Turkish,	     '%', '2', 5, 9, 1 },
+    { nrc_DEC_Cyrillic,      '&', '4', 5, 9, 0 },
     { nrc_DEC_Greek_Supp,    '"', '?', 5, 9, 0 },
     { nrc_DEC_Hebrew_Supp,   '"', '4', 5, 9, 0 },
     { nrc_DEC_Turkish_Supp,  '%', '0', 5, 9, 0 },
     { nrc_ISO_Greek_Supp,    0,   'F', 5, 9, 0 },
     { nrc_ISO_Hebrew_Supp,   0,   'H', 5, 9, 0 },
+    { nrc_ISO_Latin_2_Supp,  0,   'B', 5, 9, 0 },
     { nrc_ISO_Latin_5_Supp,  0,   'M', 5, 9, 0 },
     { nrc_ISO_Latin_Cyrillic,0,   'L', 5, 9, 0 },
     /* VT5xx (not implemented) */
@@ -1834,7 +1841,7 @@ encode_scs(DECNRCM_codes value)
 #endif
 
 void
-xtermDecodeSCS(XtermWidget xw, int which, int prefix, int suffix)
+xtermDecodeSCS(XtermWidget xw, int which, int sgroup, int prefix, int suffix)
 {
     TScreen *screen = TScreenOf(xw);
     Cardinal n;
@@ -1844,6 +1851,7 @@ xtermDecodeSCS(XtermWidget xw, int which, int prefix, int suffix)
     for (n = 0; n < XtNumber(scs_table); ++n) {
 	if (prefix == scs_table[n].prefix
 	    && suffix == scs_table[n].suffix
+	    && sgroup == scs_table[n].min_level
 	    && screen->vtXX_level >= scs_table[n].min_level
 	    && screen->vtXX_level <= scs_table[n].max_level
 	    && (scs_table[n].need_nrc == 0 || (xw->flags & NATIONAL) != 0)) {
@@ -1853,10 +1861,19 @@ xtermDecodeSCS(XtermWidget xw, int which, int prefix, int suffix)
     }
     if (result != nrc_Unknown) {
 	initCharset(screen, which, result);
-	TRACE(("setting G%d to %s\n", which, visibleScsCode((int) result)));
+	TRACE(("setting G%d to table #%d %s",
+	       which, n, visibleScsCode((int) result)));
     } else {
-	TRACE(("...unknown GSET\n"));
+	TRACE(("...unknown GSET"));
+	initCharset(screen, which, nrc_ASCII);
     }
+#if OPT_TRACE
+    TRACE((" ("));
+    if (prefix)
+	TRACE(("prefix='%c', ", prefix));
+    TRACE(("suffix='%c', sgroup=%d", suffix, sgroup));
+    TRACE((")\n"));
+#endif
 }
 
 /*
@@ -3740,7 +3757,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	case CASE_DECALN:
 	    TRACE(("CASE_DECALN - alignment test\n"));
 	    if (screen->cursor_state)
-		HideCursor();
+		HideCursor(xw);
 	    /*
 	     * DEC STD 070 does not mention left/right margins.  Likely the
 	     * text was for VT100, and not updated for VT420.
@@ -3754,21 +3771,28 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	    break;
 
 	case CASE_GSETS5:
-	    if (screen->vtXX_level < 5) {
-		ResetState(sp);
-		break;
+	    if (screen->vtXX_level >= 5) {
+		TRACE(("CASE_GSETS5(%d) = '%c'\n", sp->scstype, c));
+		xtermDecodeSCS(xw, sp->scstype, 5, 0, (int) c);
 	    }
-	    /* FALLTHRU */
+	    ResetState(sp);
+	    break;
+
 	case CASE_GSETS3:
-	    if (screen->vtXX_level < 3) {
-		ResetState(sp);
-		break;
+	    if (screen->vtXX_level >= 3) {
+		TRACE(("CASE_GSETS3(%d) = '%c'\n", sp->scstype, c));
+		xtermDecodeSCS(xw, sp->scstype, 3, 0, (int) c);
 	    }
-	    /* FALLTHRU */
+	    ResetState(sp);
+	    break;
+
 	case CASE_GSETS:
-	    if (screen->vtXX_level >= 2 || strchr("012AB", (int) c) != 0) {
+	    if (strchr("012AB", (int) c) != 0) {
 		TRACE(("CASE_GSETS(%d) = '%c'\n", sp->scstype, c));
-		xtermDecodeSCS(xw, sp->scstype, 0, (int) c);
+		xtermDecodeSCS(xw, sp->scstype, 1, 0, (int) c);
+	    } else if (screen->vtXX_level >= 2) {
+		TRACE(("CASE_GSETS(%d) = '%c'\n", sp->scstype, c));
+		xtermDecodeSCS(xw, sp->scstype, 2, 0, (int) c);
 	    }
 	    ResetState(sp);
 	    break;
@@ -3842,7 +3866,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		Boolean change = True;
 		int blinks = screen->cursor_blink_esc;
 
-		HideCursor();
+		HideCursor(xw);
 
 		switch (GetParam(0)) {
 		case DEFAULT:
@@ -4927,7 +4951,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	case CASE_GSETS_DQUOTE:
 	    if (screen->vtXX_level >= 5) {
 		TRACE(("CASE_GSETS_DQUOTE(%d) = '%c'\n", sp->scstype, c));
-		xtermDecodeSCS(xw, sp->scstype, '"', (int) c);
+		xtermDecodeSCS(xw, sp->scstype, 5, '"', (int) c);
 	    }
 	    ResetState(sp);
 	    break;
@@ -4940,7 +4964,7 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	case CASE_GSETS_AMPRSND:
 	    if (screen->vtXX_level >= 5) {
 		TRACE(("CASE_GSETS_AMPRSND(%d) = '%c'\n", sp->scstype, c));
-		xtermDecodeSCS(xw, sp->scstype, '&', (int) c);
+		xtermDecodeSCS(xw, sp->scstype, 5, '&', (int) c);
 	    }
 	    ResetState(sp);
 	    break;
@@ -4953,11 +4977,33 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 	case CASE_GSETS_PERCENT:
 	    if (screen->vtXX_level >= 3) {
 		TRACE(("CASE_GSETS_PERCENT(%d) = '%c'\n", sp->scstype, c));
-		xtermDecodeSCS(xw, sp->scstype, '%', (int) c);
+		switch (c) {
+		case '0':	/* DEC Turkish */
+		case '2':	/* Turkish */
+		case '=':	/* Hebrew */
+		    value = 5;
+		    break;
+		case '5':	/* DEC Supplemental Graphics */
+		case '6':	/* Portuguese */
+		default:
+		    value = 3;
+		    break;
+		}
+		xtermDecodeSCS(xw, sp->scstype, value, '%', (int) c);
 	    }
 	    ResetState(sp);
 	    break;
 #endif
+	case CASE_XTERM_SHIFT_ESCAPE:
+	    TRACE(("CASE_XTERM_SHIFT_ESCAPE\n"));
+	    value = ((nparam == 0)
+		     ? 0
+		     : one_if_default(0));
+	    if (value >= 0 && value <= 1)
+		xw->keyboard.shift_escape = value;
+	    ResetState(sp);
+	    break;
+
 #if OPT_MOD_FKEYS
 	case CASE_SET_MOD_FKEYS:
 	    TRACE(("CASE_SET_MOD_FKEYS\n"));
@@ -5307,13 +5353,15 @@ v_write(int f, const Char *data, unsigned len)
 }
 
 static void
-updateCursor(TScreen *screen)
+updateCursor(XtermWidget xw)
 {
+    TScreen *screen = TScreenOf(xw);
+
     if (screen->cursor_set != screen->cursor_state) {
 	if (screen->cursor_set)
-	    ShowCursor();
+	    ShowCursor(xw);
 	else
-	    HideCursor();
+	    HideCursor(xw);
     }
 }
 
@@ -5326,7 +5374,7 @@ reallyStopBlinking(XtermWidget xw)
     if (screen->cursor_state == BLINKED_OFF) {
 	/* force cursor to display if it is enabled */
 	screen->cursor_state = !screen->cursor_set;
-	updateCursor(screen);
+	updateCursor(xw);
 	xevents(xw);
     }
 }
@@ -5343,8 +5391,8 @@ update_the_screen(XtermWidget xw)
     moved = CursorMoved(screen);
     if (screen->cursor_set && moved) {
 	if (screen->cursor_state)
-	    HideCursor();
-	ShowCursor();
+	    HideCursor(xw);
+	ShowCursor(xw);
 #if OPT_INPUT_METHOD
 	PreeditPosition(xw);
 #endif
@@ -5353,7 +5401,7 @@ update_the_screen(XtermWidget xw)
 	if (moved)
 	    PreeditPosition(xw);
 #endif
-	updateCursor(screen);
+	updateCursor(xw);
     }
 }
 
@@ -5671,7 +5719,7 @@ dotext(XtermWidget xw,
 #if OPT_WIDE_CHARS
     if (screen->vt100_graphics)
 #endif
-	if (!xtermCharSetOut(xw, buf, buf + len, charset))
+	if (!(len = (Cardinal) xtermCharSetOut(xw, buf, buf + len, charset)))
 	    return;
 
     if_OPT_XMC_GLITCH(screen, {
@@ -7977,7 +8025,7 @@ SwitchBufs(XtermWidget xw, int toBuf, Bool clearFirst)
 
     screen->whichBuf = toBuf;
     if (screen->cursor_state)
-	HideCursor();
+	HideCursor(xw);
 
     rows = MaxRows(screen);
     SwitchBufPtrs(screen, toBuf);
@@ -8069,7 +8117,7 @@ VTRun(XtermWidget xw)
     if (!setjmp(VTend))
 	VTparse(xw);
     StopBlinking(xw);
-    HideCursor();
+    HideCursor(xw);
     screen->cursor_set = OFF;
     TRACE(("... VTRun\n"));
 }
@@ -8658,9 +8706,14 @@ set_flags_from_list(char *target,
     while (!IsEmpty(source)) {
 	char *next = ParseList(&source);
 	Boolean found = False;
+	char flag = 1;
 
 	if (next == 0)
 	    break;
+	if (*next == '~') {
+	    flag = 0;
+	    next++;
+	}
 	if (isdigit(CharOf(*next))) {
 	    char *temp;
 	    int value = (int) strtol(next, &temp, 0);
@@ -8669,7 +8722,7 @@ set_flags_from_list(char *target,
 	    } else {
 		for (n = 0; list[n].name != 0; ++n) {
 		    if (list[n].code == value) {
-			target[value] = 1;
+			target[value] = flag;
 			found = True;
 			TRACE(("...found %s (%d)\n", list[n].name, value));
 			break;
@@ -8680,7 +8733,7 @@ set_flags_from_list(char *target,
 	    for (n = 0; list[n].name != 0; ++n) {
 		if (!x_wildstrcmp(next, list[n].name)) {
 		    int value = list[n].code;
-		    target[value] = 1;
+		    target[value] = flag;
 		    found = True;
 		    TRACE(("...found %s (%d)\n", list[n].name, value));
 		}
@@ -8914,19 +8967,49 @@ VTInitialize(Widget wrequest,
 #undef DATA
 
 #define DATA(name) { #name, ep##name }
+#define DATA2(alias,name) { #alias, ep##name }
     static const FlagList tblPasteControls[] =
     {
-	DATA(C0)
+	DATA(NUL)
+	,DATA(SOH)
+	,DATA(STX)
+	,DATA(ETX)
+	,DATA(EOT)
+	,DATA(ENQ)
+	,DATA(ACK)
+	,DATA(BEL)
 	,DATA(BS)
-	,DATA(CR)
-	,DATA(DEL)
-	,DATA(ESC)
-	,DATA(FF)
 	,DATA(HT)
-	,DATA(NL)
+	,DATA(LF)
+	,DATA(VT)
+	,DATA(FF)
+	,DATA(CR)
+	,DATA(SO)
+	,DATA(SI)
+	,DATA(DLE)
+	,DATA(DC1)
+	,DATA(DC2)
+	,DATA(DC3)
+	,DATA(DC4)
+	,DATA(NAK)
+	,DATA(SYN)
+	,DATA(ETB)
+	,DATA(CAN)
+	,DATA(EM)
+	,DATA(SUB)
+	,DATA(ESC)
+	,DATA(FS)
+	,DATA(GS)
+	,DATA(RS)
+	,DATA(US)
+    /* aliases */
+	,DATA2(NL, LF)
+	,DATA(C0)
+	,DATA(DEL)
 	,DATA_END
     };
 #undef DATA
+#undef DATA2
 
 #define DATA(name) { #name, et##name }
     static const FlagList tblTcapOps[] =
@@ -8984,6 +9067,15 @@ VTInitialize(Widget wrequest,
     };
 #undef DATA
 #endif
+
+#define DATA(name) { #name, ss##name }
+    static const FlagList tblShift2S[] =
+    {
+	DATA(Always)
+	,DATA(Never)
+	,DATA_END
+    };
+#undef DATA
 
 #if OPT_WIDE_CHARS
 #define DATA(name) { #name, u##name }
@@ -9947,8 +10039,8 @@ VTInitialize(Widget wrequest,
 	if (!x_strcasecmp(screen->graphics_regis_screensize, "auto")) {
 	    TRACE(("setting default ReGIS screensize based on graphics_id %d\n",
 		   GraphicsTermId(screen)));
-	    screen->graphics_regis_def_high = (Dimension) native_w;
-	    screen->graphics_regis_def_wide = (Dimension) native_h;
+	    screen->graphics_regis_def_high = (Dimension) native_h;
+	    screen->graphics_regis_def_wide = (Dimension) native_w;
 	} else {
 	    int conf_high;
 	    int conf_wide;
@@ -9984,8 +10076,8 @@ VTInitialize(Widget wrequest,
 	if (!x_strcasecmp(screen->graphics_max_size, "auto")) {
 	    TRACE(("setting max graphics screensize based on graphics_id %d\n",
 		   GraphicsTermId(screen)));
-	    screen->graphics_max_high = (Dimension) native_w;
-	    screen->graphics_max_wide = (Dimension) native_h;
+	    screen->graphics_max_high = (Dimension) native_h;
+	    screen->graphics_max_wide = (Dimension) native_w;
 	} else {
 	    int conf_high;
 	    int conf_wide;
@@ -10118,6 +10210,10 @@ VTInitialize(Widget wrequest,
 
     wnew->initflags = wnew->flags;
 
+    init_Sres(keyboard.shift_escape_s);
+    wnew->keyboard.shift_escape =
+	extendedBoolean(wnew->keyboard.shift_escape_s, tblShift2S, ssLAST);
+
 #if OPT_MOD_FKEYS
     init_Ires(keyboard.modify_1st.allow_keys);
     init_Ires(keyboard.modify_1st.cursor_keys);
@@ -10183,9 +10279,6 @@ releaseWindowGCs(XtermWidget xw, VTwin *win)
 	    TRACE(("freed " #name ": %p\n", (const void *) name)); \
 	    FreeAndNull(name); \
 	}
-
-#define FREE_LEAK(name) \
-	FreeAndNull(name)
 
 #if OPT_INPUT_METHOD
 static void
@@ -10272,6 +10365,9 @@ VTDestroy(Widget w GCC_UNUSED)
     TRACE_FREE_LEAK(screen->pointer_shape);
     TRACE_FREE_LEAK(screen->term_id);
 #if OPT_WIDE_CHARS
+    TRACE_FREE_LEAK(screen->utf8_mode_s);
+    TRACE_FREE_LEAK(screen->utf8_fonts_s);
+    TRACE_FREE_LEAK(screen->utf8_title_s);
 #if OPT_LUIT_PROG
     TRACE_FREE_LEAK(xw->misc.locale_str);
     TRACE_FREE_LEAK(xw->misc.localefilter);
@@ -10386,6 +10482,7 @@ VTDestroy(Widget w GCC_UNUSED)
     TRACE_FREE_LEAK(xw->misc.default_font.f_wb);
 #endif
 
+    TRACE_FREE_LEAK(xw->work.wm_name);
     freeFontLists(&(xw->work.fonts.x11));
 #if OPT_RENDERFONT
     freeFontLists(&(xw->work.fonts.xft));
@@ -10415,11 +10512,27 @@ VTDestroy(Widget w GCC_UNUSED)
     }
 #endif
 
-#if OPT_SELECT_REGEX
-    for (n = 0; n < NSELECTUNITS; ++n) {
-	FREE_LEAK(screen->selectExpr[n]);
-    }
+#if OPT_BLINK_CURS
+    TRACE_FREE_LEAK(screen->cursor_blink_s);
 #endif
+
+#if OPT_REGIS_GRAPHICS
+    TRACE_FREE_LEAK(screen->graphics_regis_default_font);
+    TRACE_FREE_LEAK(screen->graphics_regis_screensize);
+#endif
+#if OPT_GRAPHICS
+    TRACE_FREE_LEAK(screen->graph_termid);
+    TRACE_FREE_LEAK(screen->graphics_max_size);
+#endif
+
+    for (n = 0; n < NSELECTUNITS; ++n) {
+#if OPT_SELECT_REGEX
+	TRACE_FREE_LEAK(screen->selectExpr[n]);
+#endif
+#if OPT_XRES_QUERY
+	TRACE_FREE_LEAK(screen->onClick[n]);
+#endif
+    }
 
     XtFree((void *) (screen->selection_atoms));
 
@@ -10431,6 +10544,7 @@ VTDestroy(Widget w GCC_UNUSED)
 	TRACE_FREE_LEAK(defaultTranslations);
     }
     TRACE_FREE_LEAK(xtermClassRec.core_class.tm_table);
+    TRACE_FREE_LEAK(xw->keyboard.shift_escape_s);
     TRACE_FREE_LEAK(xw->keyboard.extra_translations);
     TRACE_FREE_LEAK(xw->keyboard.shell_translations);
     TRACE_FREE_LEAK(xw->keyboard.xterm_translations);
@@ -10900,7 +11014,7 @@ VTRealize(Widget w,
 	int other = LookupCursorShape(screen->pointer_shape);
 
 	TRACE(("looked up shape index %d from shape name \"%s\"\n", other,
-	       screen->pointer_shape));
+	       NonNull(screen->pointer_shape)));
 	if (other >= 0)
 	    shape = (unsigned) other;
 
@@ -11092,8 +11206,10 @@ VTRealize(Widget w,
 	if (x_strncasecmp(xw->work.wm_name, "fvwm", 4) &&
 	    x_strncasecmp(xw->work.wm_name, "window maker", 12)) {
 	    xw->work.active_icon = eiFalse;
+	    TRACE(("... disable active_icon\n"));
 	}
     }
+    TRACE((".. if active_icon (%d), get its font\n", xw->work.active_icon));
     if (xw->work.active_icon && getIconicFont(screen)->fs) {
 	int iconX = 0, iconY = 0;
 	Widget shell = SHELL_OF(xw);
@@ -11742,11 +11858,10 @@ reverseCgs(XtermWidget xw, unsigned attr_flags, Bool hilite, int font)
  * Shows cursor at new cursor position in screen.
  */
 void
-ShowCursor(void)
+ShowCursor(XtermWidget xw)
 {
-    XtermWidget xw = term;
-    XTermDraw params;
     TScreen *screen = TScreenOf(xw);
+    XTermDraw params;
     IChar base;
     unsigned flags;
     CellColor fg_bg = initCColor;
@@ -12005,7 +12120,7 @@ ShowCursor(void)
 	     * different rules.  Just redraw the text-cell, and draw the
 	     * underline or bar on top of it.
 	     */
-	    HideCursor();
+	    HideCursor(xw);
 
 	    /*
 	     * Our current-GC is likely to have been modified in HideCursor().
@@ -12132,11 +12247,10 @@ ShowCursor(void)
  * hide cursor at previous cursor position in screen.
  */
 void
-HideCursor(void)
+HideCursor(XtermWidget xw)
 {
-    XtermWidget xw = term;
-    XTermDraw params;
     TScreen *screen = TScreenOf(xw);
+    XTermDraw params;
     GC currentGC;
     int x, y;
     IChar base;
@@ -12377,13 +12491,13 @@ HandleBlinking(XtPointer closure, XtIntervalId * id GCC_UNUSED)
     if (DoStartBlinking(screen)) {
 	if (screen->cursor_state == ON) {
 	    if (screen->select || screen->always_highlight) {
-		HideCursor();
+		HideCursor(xw);
 		if (screen->cursor_state == OFF)
 		    screen->cursor_state = BLINKED_OFF;
 	    }
 	} else if (screen->cursor_state == BLINKED_OFF) {
 	    screen->cursor_state = OFF;
-	    ShowCursor();
+	    ShowCursor(xw);
 	    if (screen->cursor_state == OFF)
 		screen->cursor_state = BLINKED_OFF;
 	}

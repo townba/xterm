@@ -1,4 +1,4 @@
-/* $XTermId: VTPrsTbl.c,v 1.101 2020/06/28 23:48:39 tom Exp $ */
+/* $XTermId: VTPrsTbl.c,v 1.103 2020/12/22 20:29:32 tom Exp $ */
 
 /*
  * Copyright 1999-2019,2020 by Thomas E. Dickey
@@ -4135,7 +4135,7 @@ CASE_GROUND_STATE,
 CASE_HIDE_POINTER,
 CASE_REPORT_VERSION,
 CASE_GROUND_STATE,
-CASE_GROUND_STATE,
+CASE_XTERM_SHIFT_ESCAPE,
 /*	t		u		v		w	*/
 CASE_XTERM_SM_TITLE,
 CASE_GROUND_STATE,
@@ -4295,7 +4295,7 @@ CASE_GROUND_STATE,
 CASE_HIDE_POINTER,
 CASE_REPORT_VERSION,
 CASE_GROUND_STATE,
-CASE_GROUND_STATE,
+CASE_XTERM_SHIFT_ESCAPE,
 /*      ocircumflex     otilde          odiaeresis      division        */
 CASE_XTERM_SM_TITLE,
 CASE_GROUND_STATE,
@@ -6666,7 +6666,7 @@ CASE_GROUND_STATE,
 /*	@		A		B		C	*/
 CASE_GROUND_STATE,
 CASE_GSETS3,
-CASE_GROUND_STATE,
+CASE_GSETS5,
 CASE_GROUND_STATE,
 /*	D		E		F		G	*/
 CASE_GROUND_STATE,
@@ -6826,7 +6826,7 @@ CASE_GROUND_STATE,
 /*      Agrave          Aacute          Acircumflex     Atilde          */
 CASE_GROUND_STATE,
 CASE_GSETS3,
-CASE_GROUND_STATE,
+CASE_GSETS5,
 CASE_GROUND_STATE,
 /*      Adiaeresis      Aring           AE              Ccedilla        */
 CASE_GROUND_STATE,

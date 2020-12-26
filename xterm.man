@@ -1,5 +1,5 @@
 '\" t
-.\" $XTermId: xterm.man,v 1.824 2020/10/13 22:12:15 tom Exp $
+.\" $XTermId: xterm.man,v 1.833 2020/12/24 12:49:26 tom Exp $
 .\"
 .\" Copyright 1996-2019,2020 by Thomas E. Dickey
 .\"
@@ -1503,6 +1503,27 @@ Abbreviated options also are supported, e.g.,
 .
 .SH RESOURCES
 \fI\*N\fP understands all of the core X Toolkit resource names and classes.
+It also uses the X Toolkit resource types (such as
+booleans,
+colors,
+fonts, 
+integers, and
+strings)
+along with their respective converters.
+Those resource types are not always sufficient:
+.bP
+\fI\*N\fP's resource values may be lists of names.
+X Toolkit resource types do not include lists.
+\fI\*N\fP uses a string for the resource, and parses it.
+.IP
+Comma-separated lists of names ignore case.
+.bP
+\fI\*N\fP may defer processing a resource until it is needed.
+For example, \fBfont2\fP through \fBfont7\fP are loaded as needed,
+to start faster.
+Again, the actual resource type is a string,
+parsed and used when needed.
+.PP
 Application specific resources
 (e.g., \*(``\fB__default_class__.\fP\fINAME\fP\*('') follow:
 .SS Application Resources
@@ -3126,7 +3147,7 @@ The resource value is a comma-separated list of names.
 \fI\*N\fP ignores capitalization.
 The default value is
 .NS
-BS,HT,DEL,ESC
+BS,DEL,ENT,EOT,ESC,NUL
 .NE
 .IP
 The names are listed below:
@@ -3135,26 +3156,16 @@ The names are listed below:
 C0
 all ASCII control characters.
 .TP 5
-BS
-ASCII backspace
-.TP 5
-CR
-ASCII carriage-return
+\fIIndividual C0 characters\fP
+NUL, SOH, STX, ETX, EOT, ENQ, ACK, BEL, BS, HT, LF, VT,
+FF, CR, SO, SI, DLE, DC1, DC2, DC3, DC4, NAK, SYN, ETB, CAN, EM, SUB, ESC, FS,
+GS, RS, US
 .TP 5
 DEL
 ASCII delete
 .TP 5
-ESC
-ASCII escape
-.TP 5
-FF
-ASCII form-feed
-.TP 5
-HT
-ASCII tab
-.TP 5
 NL
-ASCII line-feed, i.e., \*(``newline\*(''.
+ASCII line-feed, i.e., \*(``newline\*('' is the same as LF.
 .RE
 .TP 8
 .B "disallowedTcapOps\fP (class\fB DisallowedTcapOps\fP)"
@@ -4801,6 +4812,76 @@ allowing the user to work with programs that handle only one of these
 mechanisms.
 The default is \*(``false\*('', which tells it to use \fBPRIMARY\fP.
 .TP 8
+.B "shiftEscape\fP (class\fB ShiftEscape\fP)"
+\fI\*N\fP uses the \fBtranslations\fP resource to determine how
+to invoke actions for selecting and copying text using the
+pointer (e.g., a mouse).
+It also provides a mouse protocol which can be used by
+applications running in an xterm to detect mouse button clicks.
+.IP
+The mouse protocol causes \fI\*n\fP to send special escape sequences
+which allow an application to determine if \fImodifiers\fP
+(i.e., one or more of
+\fIshift\fP,
+\fIcontrol\fP,
+\fIalt\fP, and
+\fImeta\fP) were used.
+.IP
+\fI\*N\fP provides this mouse protocol by interpreting button-
+and motion-events in the functions which the \fBtranslations\fP resource
+calls for selecting and copying text:
+.RS
+.IP
+.nf
+\fBinsert-selection\fP
+\fBselect-end\fP
+\fBselect-extend\fP
+\fBselect-start\fP
+\fBstart-extend\fP
+.fi
+.RE
+.IP
+While the mouse protocol is active,
+\fI\*n\fP reserves most of the mouse button events
+for sending special escape sequences to the application.
+\fI\*N\fP normally allows you
+to use the \fIshift\fP-key
+to temporarily override this mouse protocol,
+permitting the selection and copying actions to be used.
+.IP
+The \fBshiftEscape\fP resource setting allows you
+to tell \fI\*n\fP whether to use
+the \fIshift\fP-key in this way (i.e., overriding the mouse protocol).
+\fI\*N\fP accepts either a keyword (ignoring case)
+or the number shown in parentheses:
+.RS
+.TP 3
+false (0)
+Mouse protocol does not send special escapes when \fIshift\fP-key is used.
+.TP 3
+true (1)
+Mouse protocol may send special escapes when \fIshift\fP-key is used.
+.IP
+At startup,
+\fI\*n\fP analyzes the \fBtranslations\fP to see which buttons are used
+in the (mouse) button-related bindings for selection and copying text.
+If the \fIshift\fP-key is not mentioned explicitly in a button's binding,
+\fI\*n\fP allows that button with \fIshift\fP-key for overriding the
+mouse protocol.
+.TP 3
+always (2)
+Mouse protocol can always send special escapes when \fIshift\fP-key is used.
+.TP 3
+never (3)
+Mouse protocol will never send special escapes when \fIshift\fP-key is used.
+.RE
+.IP
+\fI\*N\fP interprets a control sequence which can change this
+setting between 
+\*(``true\*('' and
+\*(``false\*(''.
+The default is \*(``false\*(''.
+.TP 8
 .B "shiftFonts\fP (class\fB ShiftFonts\fP)"
 Specifies whether to enable the actions
 \fBlarger\-vt\-font()\fP and
@@ -5155,6 +5236,10 @@ which tells \fI\*n\fP to flash the entire screen.
 .B "vt100Graphics\fP (class\fB VT100Graphics\fP)"
 This specifies whether \fI\*n\fP will interpret VT100 graphic character
 escape sequences while in UTF-8 mode.
+This feature also applies to code-pages (e.g., for VT320 and VT520)
+and National Replacement Character Sets (VT220 and up),
+but not US-ASCII (the initially selected character set),
+to avoid conflict with UTF-8.
 The default is \*(``true\*('',
 to provide support for various legacy applications.
 .TP 8
